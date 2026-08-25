@@ -1,0 +1,26 @@
+type: marketplace
+title: Building a Python Fixing AI Agent using Lang Frameworks
+language: English
+summary: |
+  <p>Build a coding agent from scratch in three stages: a tool and its JSON schema, the loop that dispatches tool calls, and a stop condition based on verification by execution rather than the model's word.</p> <p>No framework. Every exercise is checked against a scripted fake model, so you can finish the whole course offline. Running your finished agent against a real local model is the reward, not a prerequisite.</p>
+vendor:
+  name: Jelena Duric
+programming_language: Python
+programming_language_version: 3.12
+environment: unittest
+content:
+  - agentfix
+additional_files:
+  - name: LICENSE
+  - name: requirements.txt
+  - name: Modelfile
+    visible: true
+  - name: run.py
+  - name: README.md
+    visible: true
+  - name: notebooks/agentfix.ipynb
+    visible: true
+  - name: setup.sh
+  - name: setup.ps1
+  - name: setup.py
+yaml_version: 6

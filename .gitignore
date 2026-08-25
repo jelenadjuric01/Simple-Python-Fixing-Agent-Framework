@@ -1,0 +1,7 @@
+.idea/
+.coursecreator/
+__pycache__/
+*.pyc
+.pytest_cache/
+.agentfix.env
+Modelfile.agentfix-qwen

@@ -1,0 +1,14 @@
+/.idea
+/docs
+/course-src
+/build_tests
+/build_course.py
+/.venv
+__pycache__
+/.pytest_cache
+/.ruff_cache
+/.mypy_cache
+/.coverage
+/setup_tests
+/.agentfix.env
+/clean_room

@@ -1,0 +1,141 @@
+type: theory
+custom_name: Real Model
+files:
+  - name: Dockerfile.sandbox
+    visible: true
+    editable: false
+  - name: Modelfile
+    visible: true
+    editable: false
+  - name: agentfix/__init__.py
+    visible: true
+    editable: false
+  - name: agentfix/agent/__init__.py
+    visible: true
+    editable: false
+  - name: agentfix/agent/trace.py
+    visible: true
+    editable: false
+  - name: agentfix/cli.py
+    visible: true
+    editable: false
+  - name: agentfix/config.py
+    visible: true
+    editable: false
+  - name: agentfix/doctor.py
+    visible: true
+    editable: false
+  - name: agentfix/eval/__init__.py
+    visible: true
+    editable: false
+  - name: agentfix/eval/humanevalfix.py
+    visible: true
+    editable: false
+  - name: agentfix/eval/runner.py
+    visible: true
+    editable: false
+  - name: agentfix/llm/__init__.py
+    visible: true
+    editable: false
+  - name: agentfix/llm/client.py
+    visible: true
+    editable: false
+  - name: agentfix/llm/fake.py
+    visible: true
+    editable: false
+  - name: agentfix/llm/types.py
+    visible: true
+    editable: false
+  - name: agentfix/runner.py
+    visible: true
+    editable: false
+  - name: agentfix/sandbox/__init__.py
+    visible: true
+    editable: false
+  - name: agentfix/sandbox/base.py
+    visible: true
+    editable: false
+  - name: agentfix/sandbox/docker_backend.py
+    visible: true
+    editable: false
+  - name: agentfix/sandbox/subprocess_backend.py
+    visible: true
+    editable: false
+  - name: agentfix/tasks/__init__.py
+    visible: true
+    editable: false
+  - name: agentfix/tasks/loader.py
+    visible: true
+    editable: false
+  - name: agentfix/tools/__init__.py
+    visible: true
+    editable: false
+  - name: agentfix/tools/base.py
+    visible: true
+    editable: false
+  - name: agentfix/tools/fs.py
+    visible: true
+    editable: false
+  - name: results/precomputed/humanevalfix.json
+    visible: true
+    editable: false
+  - name: results/precomputed/workshop.json
+    visible: true
+    editable: false
+  - name: scripts/vendor_humanevalfix.py
+    visible: true
+    editable: false
+  - name: tasks/humanevalfix/subset.json
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/shopcart/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/shopcart/cart.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/shopcart/pricing.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/tests/test_cart.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/task.json
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/billing/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/billing/discounts.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/billing/invoice.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/tests/test_invoice.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/task.json
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/config/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/config/parser.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/config/tokens.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/tests/test_parser.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/task.json
+    visible: true
+    editable: false
+  - name: agentfix/tools/tests_tool.py
+    visible: true
+    editable: false
+  - name: agentfix/agent/loop.py
+    visible: true
+    editable: false

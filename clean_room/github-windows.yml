@@ -1,0 +1,90 @@
+# A clean Windows without owning one. Copy this file to .github/workflows/ and run it from the
+# Actions tab ("Run workflow"). Every run gets a brand new Windows machine, which is exactly the
+# clean room a local VM gives you, minus the 30 GB and the snapshot juggling.
+#
+#   cp clean_room/github-windows.yml .github/workflows/clean-room-windows.yml
+#   git push        # then: Actions -> "clean room: Windows" -> Run workflow
+#
+# Two things to know before you trust the result:
+#
+#   1. GitHub's Windows runners do NOT have winget (they are Server images; winget ships with
+#      the Store). That is not a broken test — it exercises the path a locked-down corporate
+#      Windows takes, where setup.py has to fall back to uv. To test the winget path itself you
+#      need a real Windows 11 desktop or VM.
+#   2. `install_ollama: true` installs Ollama with its Inno Setup installer in silent mode.
+#      That is the same binary winget would fetch, so the model half of the run is real — but
+#      keep the tier on qwen, because an 8 GB pull on a runner is slow and pointless.
+
+name: "clean room: Windows"
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Tier to force (qwen keeps the download at ~1 GB)"
+        default: "qwen"
+        type: choice
+        options: ["qwen", "mellum2", "auto"]
+      old_python:
+        description: "Start from Python 3.11, so setup.py has to upgrade it"
+        default: true
+        type: boolean
+      install_ollama:
+        description: "Install Ollama too, so the model steps can actually run"
+        default: false
+        type: boolean
+
+jobs:
+  clean-room:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: What this machine has
+        shell: pwsh
+        run: |
+          Write-Host "OS:     $((Get-CimInstance Win32_OperatingSystem).Caption)"
+          Write-Host "RAM:    $('{0:N1} GB' -f ((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB))"
+          Write-Host "winget: $(if (Get-Command winget -ErrorAction SilentlyContinue) { 'present' } else { 'ABSENT — the uv fallback is what will run' })"
+          Write-Host "ollama: $(if (Get-Command ollama -ErrorAction SilentlyContinue) { 'present' } else { 'not installed' })"
+
+      # Optional: setup.ps1 installs Python itself. This is here to test the *upgrade* path
+      # rather than the from-nothing path.
+      - name: Give it a too-old Python
+        if: ${{ inputs.old_python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ollama (silent Inno installer)
+        if: ${{ inputs.install_ollama }}
+        shell: pwsh
+        run: |
+          $url = "https://ollama.com/download/OllamaSetup.exe"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\OllamaSetup.exe"
+          Start-Process -FilePath "$env:RUNNER_TEMP\OllamaSetup.exe" `
+            -ArgumentList "/VERYSILENT","/NORESTART" -Wait
+          $bin = "$env:LOCALAPPDATA\Programs\Ollama"
+          if (Test-Path $bin) { echo $bin | Out-File -Append -Encoding utf8 $env:GITHUB_PATH }
+
+      - name: setup.ps1
+        shell: pwsh
+        run: |
+          $tierArgs = @()
+          if ("${{ inputs.tier }}" -ne "auto") { $tierArgs = @("--tier", "${{ inputs.tier }}") }
+          powershell -ExecutionPolicy Bypass -File setup.ps1 -Yes @tierArgs
+          Write-Host "== setup exited $LASTEXITCODE =="
+
+      - name: What setup.py actually left behind
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "MELLUM_MODEL (User scope): '$([Environment]::GetEnvironmentVariable('MELLUM_MODEL','User'))'"
+          if (Test-Path .agentfix.env) { Get-Content .agentfix.env } else { Write-Host "no .agentfix.env" }
+          if (Test-Path Modelfile.agentfix-qwen) { Get-Content Modelfile.agentfix-qwen }
+          if (Get-Command ollama -ErrorAction SilentlyContinue) { ollama list; ollama ps }
+
+      - name: The setup script's own tests
+        if: always()
+        shell: pwsh
+        run: python -m unittest discover -s setup_tests -v

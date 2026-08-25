@@ -1,0 +1,165 @@
+type: edu
+custom_name: Stage 1
+files:
+  - name: results/precomputed/workshop.json
+    visible: true
+    editable: false
+  - name: results/workshop.json
+    visible: true
+    editable: false
+  - name: results/humanevalfix.json
+    visible: true
+    editable: false
+  - name: agentlang/llm/fake.py
+    visible: true
+    editable: false
+  - name: agentlang/llm/client.py
+    visible: true
+    editable: false
+  - name: agentlang/llm/__init__.py
+    visible: true
+    editable: false
+  - name: agentlang/eval/runner.py
+    visible: true
+    editable: false
+  - name: agentlang/eval/__init__.py
+    visible: true
+    editable: false
+  - name: agentlang/eval/humanevalfix.py
+    visible: true
+    editable: false
+  - name: agentlang/agent/state.py
+    visible: true
+    editable: false
+  - name: agentlang/agent/trace.py
+    visible: true
+    editable: false
+  - name: agentlang/agent/__init__.py
+    visible: true
+    editable: false
+  - name: agentlang/agent/prebuilt.py
+    visible: true
+    editable: false
+  - name: agentlang/tasks/loader.py
+    visible: true
+    editable: false
+  - name: agentlang/tasks/__init__.py
+    visible: true
+    editable: false
+  - name: agentlang/tools/fs.py
+    visible: true
+    editable: false
+  - name: agentlang/tools/base.py
+    visible: true
+    editable: false
+  - name: agentlang/tools/__init__.py
+    visible: true
+    editable: false
+  - name: agentlang/tools/tests_tool.py
+    visible: true
+    editable: false
+  - name: agentlang/cli.py
+    visible: true
+    editable: false
+  - name: agentlang/sandbox/base.py
+    visible: true
+    editable: false
+  - name: agentlang/sandbox/__init__.py
+    visible: true
+    editable: false
+  - name: agentlang/sandbox/docker_backend.py
+    visible: true
+    editable: false
+  - name: agentlang/sandbox/subprocess_backend.py
+    visible: true
+    editable: false
+  - name: agentlang/config.py
+    visible: true
+    editable: false
+  - name: agentlang/doctor.py
+    visible: true
+    editable: false
+  - name: agentlang/runner.py
+    visible: true
+    editable: false
+  - name: agentlang/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/tests/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/tests/test_parser.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/config/parser.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/config/tokens.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/config/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/task.json
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/tests/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/tests/test_invoice.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/billing/invoice.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/billing/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/billing/discounts.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/task.json
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/tests/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/tests/test_cart.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/shopcart/cart.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/shopcart/pricing.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/shopcart/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/task.json
+    visible: true
+    editable: false
+  - name: tasks/humanevalfix/subset.json
+    visible: true
+    editable: false
+  - name: Dockerfile.sandbox
+    visible: true
+    editable: false
+  - name: Modelfile
+    visible: true
+    editable: false
+  - name: agentlang/agent/graph.py
+    visible: true
+    placeholders:
+      - offset: 19955
+        length: 637
+        placeholder_text: "#TODO: EXERCISE(stage-1)"
+  - name: scripts/vendor_humanevalfix.py
+    visible: true
+    editable: false
+  - name: tests/__init__.py
+    visible: false
+    propagatable: false
+  - name: tests/test_task.py
+    visible: false
+    propagatable: false
