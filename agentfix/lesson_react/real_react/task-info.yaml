@@ -1,0 +1,193 @@
+type: theory
+custom_name: Run for Real
+files:
+  - name: tasks/workshop/03-parser/repo/tests/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/tests/test_parser.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/config/parser.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/config/tokens.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/repo/config/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/03-parser/task.json
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/tests/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/tests/test_invoice.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/billing/invoice.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/billing/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/repo/billing/discounts.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/02-invoice/task.json
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/tests/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/tests/test_cart.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/shopcart/cart.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/shopcart/pricing.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/repo/shopcart/__init__.py
+    visible: true
+    editable: false
+  - name: tasks/workshop/01-shopcart/task.json
+    visible: true
+    editable: false
+  - name: tasks/humanevalfix/subset.json
+    visible: true
+    editable: false
+  - name: Dockerfile.sandbox
+    visible: true
+    editable: false
+  - name: Modelfile
+    visible: true
+    editable: false
+  - name: agentgraph/agent/graph.py
+    visible: true
+    placeholders:
+      - offset: 13967
+        length: 31
+        placeholder_text: "# TODO: EXERCISE(stage-1)"
+        dependency:
+          section: agentfix
+          lesson: lesson_react
+          task: react
+          file: agentgraph/agent/graph.py
+          placeholder: 1
+        is_visible: false
+      - offset: 20238
+        length: 370
+        placeholder_text: "# TODO: Exercise 1"
+        dependency:
+          section: agentfix
+          lesson: lesson_react
+          task: react
+          file: agentgraph/agent/graph.py
+          placeholder: 2
+        is_visible: false
+      - offset: 25833
+        length: 63
+        placeholder_text: "# TODO: Exercise 1"
+        dependency:
+          section: agentfix
+          lesson: lesson_react
+          task: react
+          file: agentgraph/agent/graph.py
+          placeholder: 3
+        is_visible: false
+      - offset: 27453
+        length: 1815
+        placeholder_text: "# TODO: Exercise 1"
+        dependency:
+          section: agentfix
+          lesson: lesson_react
+          task: react
+          file: agentgraph/agent/graph.py
+          placeholder: 4
+        is_visible: false
+  - name: agentgraph/agent/state.py
+    visible: true
+    editable: false
+  - name: agentgraph/agent/trace.py
+    visible: true
+    editable: false
+  - name: agentgraph/agent/__init__.py
+    visible: true
+    editable: false
+  - name: agentgraph/agent/prebuilt.py
+    visible: true
+    editable: false
+  - name: agentgraph/eval/runner.py
+    visible: true
+    editable: false
+  - name: agentgraph/eval/__init__.py
+    visible: true
+    editable: false
+  - name: agentgraph/eval/humanevalfix.py
+    visible: true
+    editable: false
+  - name: agentgraph/llm/fake.py
+    visible: true
+    editable: false
+  - name: agentgraph/llm/client.py
+    visible: true
+    editable: false
+  - name: agentgraph/llm/__init__.py
+    visible: true
+    editable: false
+  - name: agentgraph/sandbox/base.py
+    visible: true
+    editable: false
+  - name: agentgraph/sandbox/__init__.py
+    visible: true
+    editable: false
+  - name: agentgraph/sandbox/docker_backend.py
+    visible: true
+    editable: false
+  - name: agentgraph/sandbox/subprocess_backend.py
+    visible: true
+    editable: false
+  - name: agentgraph/tasks/loader.py
+    visible: true
+    editable: false
+  - name: agentgraph/tasks/__init__.py
+    visible: true
+    editable: false
+  - name: agentgraph/tools/fs.py
+    visible: true
+    editable: false
+  - name: agentgraph/tools/base.py
+    visible: true
+    editable: false
+  - name: agentgraph/tools/__init__.py
+    visible: true
+    editable: false
+  - name: agentgraph/tools/tests_tool.py
+    visible: true
+    editable: false
+  - name: agentgraph/cli.py
+    visible: true
+    editable: false
+  - name: agentgraph/config.py
+    visible: true
+    editable: false
+  - name: agentgraph/doctor.py
+    visible: true
+    editable: false
+  - name: agentgraph/runner.py
+    visible: true
+    editable: false
+  - name: agentgraph/__init__.py
+    visible: true
+    editable: false
+  - name: results/precomputed/workshop.json
+    visible: true
+    editable: false
+  - name: results/workshop.json
+    visible: true
+    editable: false
+  - name: results/humanevalfix.json
+    visible: true
+    editable: false

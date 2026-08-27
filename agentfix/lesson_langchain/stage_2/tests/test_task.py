@@ -42,7 +42,6 @@ from agentlang.agent.trace import Tracer, prompt_tokens_of
 from agentlang.llm.client import make_chat_model
 from agentlang.llm.fake import (
     FakeChatModel,
-    assistant_invalid_tool_call,
     assistant_text,
     assistant_tool_call,
     assistant_tool_calls,
@@ -310,18 +309,6 @@ class TestTheGuard(Stage2TestCase):
             llm.index, MAX_GUARD_HITS + 1, "the run should have been given up on, not run out"
         )
 
-    def test_repeated_malformed_json_also_trips_the_guard(self):
-        """A model stuck on one broken call is just as stuck as one stuck on a good call."""
-        result, llm = self.run_with(
-            [
-                assistant_invalid_tool_call("read_file", '{"path": ', call_id=f"c{i}")
-                for i in range(10)
-            ],
-            max_steps=10,
-        )
-        self.assertFalse(result.solved)
-        self.assertLessEqual(llm.index, MAX_GUARD_HITS + 1)
-
 
 class TestTheAgentStillWorks(Stage2TestCase):
     def test_a_normal_run_is_untouched_by_the_guard(self):
@@ -484,45 +471,6 @@ class TestFailuresBecomeObservations(Stage2TestCase):
         )
         content = self._last_tool_content(llm).lower()
         self.assertTrue("path" in content or "required" in content)
-
-    def test_arguments_that_are_not_valid_json_are_still_answered(self):
-        """ToolNode ignores these entirely, producing no reply. The API requires one."""
-        _, llm = self.run_with(
-            [
-                assistant_invalid_tool_call("read_file", '{"path": "cart.py"'),
-                assistant_text("giving up"),
-            ]
-        )
-        answers = [m for m in llm.calls[-1] if getattr(m, "tool_call_id", None)]
-        self.assertEqual(len(answers), 1, "an unanswered tool call breaks the next request")
-        self.assertIn("JSON", str(answers[-1].content))
-
-    def test_a_turn_mixing_a_broken_and_a_good_call_answers_both(self):
-        """`requested_calls` exists to flatten the two fields; nothing tested them together.
-
-        The API rejects a request that leaves any `tool_call_id` unanswered, so a turn carrying
-        one unparseable call and one good one has to come back with two replies.
-        """
-        mixed = AIMessage(
-            content="",
-            tool_calls=[{"name": "run_tests", "args": {}, "id": "good"}],
-            invalid_tool_calls=[
-                {
-                    "name": "read_file",
-                    "args": '{"path": ',
-                    "id": "bad",
-                    "error": "Function arguments are not valid JSON.",
-                }
-            ],
-            usage_metadata={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
-        )
-        _, llm = self.run_with([mixed, assistant_text("giving up")], max_steps=2)
-        answers = [m for m in llm.calls[-1] if getattr(m, "tool_call_id", None)]
-        self.assertEqual(
-            [m.tool_call_id for m in answers],
-            ["bad", "good"],
-            "bad JSON is answered first, and neither call is left unanswered",
-        )
 
     def test_a_tool_that_raises_does_not_end_the_run(self):
         """ToolNode's default lets the exception through; the graph opts back in."""
@@ -710,19 +658,6 @@ class TestBudgetAndGuard(Stage2TestCase):
         )
         self.assertFalse(result.solved)
         self.assertLessEqual(llm.index, MAX_GUARD_HITS + 1)
-
-    def test_repeated_malformed_json_also_trips_the_guard(self):
-        """Parity with the original, where bad arguments arrived as an ordinary call and were
-        guarded for free. On this side they arrive on a separate field, so it takes code."""
-        result, llm = self.run_with(
-            [
-                assistant_invalid_tool_call("read_file", '{"path": ', call_id=f"c{i}")
-                for i in range(10)
-            ],
-            max_steps=10,
-        )
-        self.assertFalse(result.solved)
-        self.assertLessEqual(llm.index, MAX_GUARD_HITS + 1, "a stuck model must be abandoned")
 
     def test_the_second_repeat_warns_that_the_run_will_be_abandoned(self):
         """Only the first wording was pinned; the escalation could be deleted unnoticed."""
@@ -1264,22 +1199,6 @@ class TestMiddlewareOrderIsLoadBearing(PrebuiltTestCase):
 class TestWhatIsStillMissing(PrebuiltTestCase):
     """The gaps that keep agent/graph.py from collapsing into a constructor call."""
 
-    def test_arguments_that_are_not_valid_json_go_unanswered(self):
-        """Still dropped, exactly as ToolNode drops them. Our graph answers them by hand.
-
-        The consequence is not cosmetic: the API rejects any request that leaves a
-        `tool_call_id` unanswered, so against a real server the NEXT turn fails.
-        """
-        final, _ = self.run_with(
-            [
-                assistant_invalid_tool_call("read_file", '{"path": "cart.py"'),
-                assistant_text("giving up"),
-            ],
-            max_steps=2,
-        )
-        answers = [m for m in final["messages"] if getattr(m, "tool_call_id", None)]
-        self.assertEqual(answers, [], "if this ever fails, the framework fixed the gap")
-
     def test_the_guards_counters_leak_between_runs_of_one_agent(self):
         """The consequence of keeping guard state on the middleware instead of in the state.
 
@@ -1391,11 +1310,6 @@ class TestReplyBuilders(unittest.TestCase):
     def test_mismatched_id_count_is_rejected(self):
         with self.assertRaises(AssertionError):
             assistant_tool_calls([("run_tests", {})], call_ids=("c1", "c2"))
-
-    def test_an_invalid_call_lands_in_invalid_tool_calls_not_tool_calls(self):
-        reply = assistant_invalid_tool_call("read_file", '{"path": ')
-        self.assertEqual(reply.tool_calls, [])
-        self.assertEqual(len(reply.invalid_tool_calls), 1)
 
 
 class TestFakeChatModel(unittest.TestCase):

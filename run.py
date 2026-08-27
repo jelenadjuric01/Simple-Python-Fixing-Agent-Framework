@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Run either agent from the course root, so you never have to go looking for its directory.
+"""Run any of the course's agents from the course root, without going looking for its directory.
 
     python run.py doctor                                  # the no-framework agent
     python run.py agentlang doctor                        # the LangGraph agent
-    python run.py agentlang solve tasks/workshop/01-shopcart --verbose
-    python run.py unittest tests.test_task -v
-    python run.py agentlang docker-build
+    python run.py agentgraph doctor                       # the LangGraph + reasoning agent
+    python run.py agentgraph solve tasks/workshop/01-shopcart --verbose
+    python run.py agentgraph eval --suite workshop
+    python run.py agentgraph unittest tests.test_task -v
+    python run.py agentgraph docker-build
 
 Why this exists. The guided project is a JetBrains Academy *framework lesson*, and those keep all
 of a lesson's code in one plugin-managed working directory. That directory is real, but it is not
@@ -19,17 +21,18 @@ It shells out rather than importing, deliberately. The course root contains a di
 and import it instead of the real one. Running a subprocess with the working directory set means
 the package name always resolves to the package, never to the section folder.
 
-Two lessons, two agents, two package names. `lesson_build` builds the agent with no framework and
-calls its package `agentfix`; `lesson_langchain` rebuilds it on LangGraph and calls its package
-`agentlang`. They are separate implementations with separate code, so every command — solve,
-eval, doctor, docker-build — has to run against one or the other.
+Three lessons, three agents, three package names. `lesson_build` builds the agent with no
+framework and calls its package `agentfix`; `lesson_langchain` rebuilds it on LangGraph and calls
+its package `agentlang`; `lesson_react` drives that same graph with a *thinking* model and calls
+its package `agentgraph`. They are separate implementations with separate code, so every
+command — solve, eval, doctor, unittest, docker-build — has to run against one of them.
 
 Which one? Nothing on disk tells this script which lesson you are reading, so it is chosen
 explicitly, in this order:
 
-  1. the first word of the command   `python run.py agentlang solve ...`
-  2. a flag, if you prefer it        `python run.py --agentlang solve ...`
-  3. AGENT_EDITION in .agentfix.env  set it once while working through a lesson
+  1. the first word of the command    `python run.py agentgraph solve ...`
+  2. a flag, if you prefer it         `python run.py --agentgraph solve ...`
+  3. AGENT_EDITION in .agentfix.env   set it once while working through a lesson
   4. the default, `agentfix`
 
 The `[run.py]` line printed before every command names the directory it chose, so which agent
@@ -51,27 +54,31 @@ ROOT = Path(__file__).resolve().parent
 # variable back to the terminal you are standing in. Reading it here means the choice survives a
 # new terminal without anyone having to remember an `export` line.
 #
-# Shared by both editions, and deliberately still called `.agentfix.env` — `setup.py` writes it,
+# Shared by every edition, and deliberately still called `.agentfix.env` — `setup.py` writes it,
 # and the tier it records is a property of the machine, not of which lesson you are running.
 # `AGENT_EDITION` is also read from here, which is what makes step 3 above work.
 ENV_FILE = ROOT / ".agentfix.env"
 
 EDITION_KEY = "AGENT_EDITION"
 
-# One image serves both editions: `docker_backend.py` in each looks for `agentfix-sandbox:latest`,
-# and the Dockerfile only ever installs a Python and a working directory.
-SANDBOX_IMAGE = "agentfix-sandbox"
+# The tag `docker-build` writes, per edition, because it has to match what that edition's
+# `docker_backend.py` goes looking for. `agentfix` and `agentlang` both expect
+# `agentfix-sandbox:latest`; `agentgraph` renamed its image along with its package and expects
+# `agentgraph-sandbox:latest`. Building the wrong tag fails at solve time, not at build time,
+# with "Unable to find image" — so this is derived per edition rather than shared.
+DEFAULT_SANDBOX_IMAGE = "agentfix-sandbox"
 
 
 @dataclass(frozen=True)
 class Edition:
-    """One of the two agents: where its code lives, and what its package is called."""
+    """One of the course's agents: where its code lives, and what its package is called."""
 
     name: str  # what you type: `python run.py <name> <command>` or `--<name>`
     package: str  # the importable package, for `python -m <package>.cli`
     lesson: str  # the lesson it belongs to, named in errors
     workdirs: tuple[Path, ...]  # probed in order; the first one holding the package wins
     tests_workdir: Path | None  # where `unittest` runs, if this edition ships a suite
+    sandbox_image: str = DEFAULT_SANDBOX_IMAGE  # the tag `docker-build` writes for this edition
 
     def find_workdir(self) -> Path:
         """The directory this edition's code actually lives in."""
@@ -115,10 +122,32 @@ AGENTLANG = Edition(
     tests_workdir=ROOT / "agentfix" / "lesson_langchain" / "stage_2",
 )
 
-EDITIONS: dict[str, Edition] = {AGENTFIX.name: AGENTFIX, AGENTLANG.name: AGENTLANG}
+AGENTGRAPH = Edition(
+    name="agentgraph",
+    package="agentgraph",
+    lesson="What about thinking?",
+    # Same shape as the other two: the learner's own materialised directory first, then the
+    # authoring copy of the finished project. `real_react` is that copy — the step where the
+    # agent is run against a real thinking model — and it holds the same package as `react`.
+    workdirs=(
+        ROOT / "agentfix" / "lesson_react" / "task",
+        ROOT / "agentfix" / "lesson_react" / "real_react",
+        ROOT / "agentfix" / "lesson_react" / "react",
+    ),
+    # `react` is the step that ships the suite: the exercise, the graph, reasoning, the tools,
+    # the sandbox, the oracle and the shipped fixtures, in one file.
+    tests_workdir=ROOT / "agentfix" / "lesson_react" / "react",
+    sandbox_image="agentgraph-sandbox",
+)
+
+EDITIONS: dict[str, Edition] = {
+    AGENTFIX.name: AGENTFIX,
+    AGENTLANG.name: AGENTLANG,
+    AGENTGRAPH.name: AGENTGRAPH,
+}
 
 # What you get when you name nothing, so every command that worked before this file learned
-# about a second edition still works unchanged.
+# about a second and third edition still works unchanged.
 DEFAULT_EDITION = AGENTFIX.name
 
 # `unittest` under an edition that ships no suite runs this one instead, rather than failing with
@@ -130,7 +159,7 @@ USAGE = """usage: python run.py [edition] <command> [args...]
 
   python run.py doctor
   python run.py solve tasks/workshop/01-shopcart --verbose
-  python run.py eval workshop
+  python run.py eval --suite workshop --limit 3
   python run.py unittest tests.test_task -v
   python run.py docker-build
 
@@ -143,7 +172,7 @@ default: {default}"""
 
 def usage() -> str:
     listed = "\n".join(
-        f"  {e.name:<10} {e.lesson:<26} python -m {e.package}.cli" for e in EDITIONS.values()
+        f"  {e.name:<11} {e.lesson:<26} python -m {e.package}.cli" for e in EDITIONS.values()
     )
     return USAGE.format(
         key=EDITION_KEY, env=ENV_FILE.name, editions=listed, default=DEFAULT_EDITION
@@ -231,7 +260,8 @@ def build_command(edition: Edition, argv: list[str]) -> tuple[list[str], Path]:
         # renaming or reordering tasks cannot leave this pointing at a directory that is gone.
         if not (workdir / "Dockerfile.sandbox").is_file():
             raise SystemExit(f"run.py could not find Dockerfile.sandbox in:\n  {workdir}")
-        return ["docker", "build", "-t", SANDBOX_IMAGE, "-f", "Dockerfile.sandbox", "."], workdir
+        argv = ["docker", "build", "-t", edition.sandbox_image, "-f", "Dockerfile.sandbox", "."]
+        return argv, workdir
 
     # Everything else — doctor, solve, eval, --version — is the edition's own CLI.
     return [sys.executable, "-m", f"{edition.package}.cli", *argv], workdir
