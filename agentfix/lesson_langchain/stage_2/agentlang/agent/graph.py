@@ -296,12 +296,6 @@ def build_graph(
             #
             # Right now there is no guard at all: every call runs, however many times the model
             # asks for it.
-            #
-
-
-            # Loop guard. A model that repeats a call verbatim learned nothing from the result,
-            # so re-running it would burn a step for the same output. Send an observation
-            # instead and let it try something else.
             if current == signature:
                 hits += 1
                 replies.append(

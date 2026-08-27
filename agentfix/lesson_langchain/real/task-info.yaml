@@ -151,8 +151,8 @@ files:
   - name: agentlang/agent/graph.py
     visible: true
     placeholders:
-      - offset: 14945
-        length: 798
+      - offset: 14917
+        length: 559
         placeholder_text: "# TODO"
         dependency:
           section: agentfix
@@ -161,7 +161,7 @@ files:
           file: agentlang/agent/graph.py
           placeholder: 1
         is_visible: false
-      - offset: 19216
+      - offset: 18949
         length: 607
         placeholder_text: "# TODO"
         dependency:

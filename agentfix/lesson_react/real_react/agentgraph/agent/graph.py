@@ -508,10 +508,6 @@ def build_graph(
 
         # No action: the model spent a turn and asked for nothing. Four answers from here, and
         # their order is as much of the decision as the answers are.
-        # No action. This is the only place the run can end successfully — and it ends because
-        # the tests pass, not because the model stopped calling tools. Checked FIRST, before
-        # the guards below, so the closing turn of a solved run is never mistaken for a model
-        # that has stalled.
         if is_done(state):
             return END
         if state["step"] >= max_steps:

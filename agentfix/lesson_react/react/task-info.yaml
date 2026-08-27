@@ -83,7 +83,7 @@ files:
         length: 63
         placeholder_text: "# TODO: Exercise 1"
       - offset: 27453
-        length: 1815
+        length: 1505
         placeholder_text: "# TODO: Exercise 1"
   - name: agentgraph/agent/state.py
     visible: true
