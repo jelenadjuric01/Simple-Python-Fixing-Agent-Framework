@@ -151,9 +151,9 @@ files:
   - name: agentlang/agent/graph.py
     visible: true
     placeholders:
-      - offset: 19955
-        length: 637
-        placeholder_text: "#TODO: EXERCISE(stage-1)"
+      - offset: 18429
+        length: 607
+        placeholder_text: "TODO: EXERCISE(stage-1)"
   - name: scripts/vendor_humanevalfix.py
     visible: true
     editable: false

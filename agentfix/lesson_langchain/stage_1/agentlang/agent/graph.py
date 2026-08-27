@@ -28,10 +28,6 @@ What it does NOT do, and this is the part worth the workshop's time:
 
   - `handle_tool_errors` defaults to letting a tool's exception propagate and kill the run.
     The original guaranteed dispatch never raises. We opt back in, below.
-  - `invalid_tool_calls` — a tool call whose JSON arguments did not parse — is silently
-    ignored by ToolNode, producing NO reply message. The API requires an answer to every
-    call the model made, so this is not a cosmetic gap. A 12B model gets that JSON wrong
-    often enough to matter, so `_answer_invalid` below handles it by hand.
   - The loop guard. LangGraph has no hook for it at all. LangChain 1.x middleware does give
     you the seam (`wrap_tool_call`), but the policy — a repeated call means the model is stuck
     — is still yours. See agent/prebuilt.py.
@@ -77,11 +73,6 @@ MAX_GUARD_HITS = 3
 # Sent when the model replies with prose while the tests are still red. See `route_after_agent`
 # for why a text-only reply is not allowed to end the run.
 NUDGE = "The tests have not passed. Read the latest failure and write a fix."
-
-INVALID_ARGUMENTS_MESSAGE = (
-    "Your arguments for {name} were not valid JSON, so nothing ran. Send the call again "
-    "with a single well-formed JSON object."
-)
 
 
 @dataclass(frozen=True)
@@ -180,38 +171,21 @@ def tests_passed_after(replies: Sequence[AnyMessage], current: bool) -> bool:
 def call_signature(call: dict[str, Any]) -> str:
     """An identity for "the same call again": tool name plus its arguments.
 
-    Two calls the guard should treat as identical must produce the same string here. The
-    placeholder below runs, so the agent works — it is just wrong in two ways the tests name.
-
-    #TODO: EXERCISE(stage-2)
+    `sorted(...)` first so that {"a": 1, "b": 2} and {"b": 2, "a": 1} compare equal — key order
+    in the model's JSON is not meaningful.
     """
-    return repr(call)
+    return f"{call['name']}::{sorted((call.get('args') or {}).items())!r}"
 
 
-def requested_calls(message: AIMessage) -> list[tuple[dict[str, Any], str, bool]]:
-    """Every call the model made this turn, as (call, guard signature, arguments parsed?).
-
-    One list, from the two fields LangChain splits the model's turn across: `tool_calls` and
-    `invalid_tool_calls`. Flattening them here is what lets the guard see both — the reason
-    that matters is parity with the no-framework edition, where malformed arguments arrived as
-    an ordinary call carrying a sentinel and so were guarded for free. On this side they arrive
-    on a separate field and would otherwise be exempt, letting a model stuck on one malformed
-    call retry until the entire step budget was gone.
-
-    Bad JSON comes first so that a turn mixing valid and invalid calls still answers all of
-    them even if something below goes wrong mid-list.
+def requested_calls(message: AIMessage) -> list[tuple[dict[str, Any], str]]:
+    """Every call the model made this turn, paired with its guard signature.
 
     Every call is assumed to carry an `id`, which is what a reply is paired with. Upstream types
     it `str | None`; ChatOllama always synthesises a uuid, so it is always there for us. A
     backend that omitted one would fail inside ToolMessage validation, and that is the right
     outcome — there is no correct reply to a call you cannot address.
     """
-    invalid = [
-        (dict(bad), f"{bad.get('name') or 'unknown'}::INVALID::{bad.get('args')!r}", False)
-        for bad in message.invalid_tool_calls
-    ]
-    valid = [(dict(call), call_signature(dict(call)), True) for call in message.tool_calls]
-    return invalid + valid
+    return [(dict(call), call_signature(dict(call))) for call in message.tool_calls]
 
 
 def guard_observation(name: str, hits: int) -> str:
@@ -240,7 +214,7 @@ def completion_tokens_of(message: AIMessage) -> int:
 def build_graph(
     llm: BaseChatModel,
     tools: Sequence[BaseTool],
-    tracer: Tracer,
+    tracer: Tracer,  # noqa: ARG001 — used once you fill in stage 2
     max_steps: int = MAX_STEPS,
     checkpointer: BaseCheckpointSaver[Any] | None = None,
 ) -> Any:
@@ -287,21 +261,6 @@ def build_graph(
             "peak_prompt_tokens": prompt_tokens_of(reply),
         }
 
-    def _answer_invalid(call: dict[str, Any]) -> ToolMessage:
-        """A tool call whose JSON did not parse. ToolNode ignores these entirely.
-
-        Naming the real problem matters: "missing argument: path" would be misleading, because
-        the model probably did send a path — inside broken JSON.
-        """
-        name = call.get("name") or "unknown"
-        tracer.note("tool", name, "invalid JSON arguments — not executed")
-        return ToolMessage(
-            content=INVALID_ARGUMENTS_MESSAGE.format(name=name),
-            tool_call_id=call["id"],
-            name=name,
-            status="error",
-        )
-
     def tools_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         """Guard the model's calls, then let ToolNode run whatever survives.
 
@@ -324,14 +283,23 @@ def build_graph(
         signature = state["last_signature"]
         hits = state["guard_hits"]
 
-        for call, current, parsed in requested_calls(message):
+        for call, current in requested_calls(message):
             name = str(call.get("name") or "unknown")  # noqa: F841 — used once you fill this in
+
+            # The loop guard. `current` is this call's signature, `signature` the previous
+            # executed call's, `hits` the number of consecutive repeats. Decide whether this
+            # call runs at all — and answer it either way.
+            #
+            # `guard_observation(name, hits)` writes the text for a refusal, and
+            # `tracer.note("tool", name, ...)` records something the graph decided rather than
+            # something a tool did.
+            #
+            # Right now there is no guard at all: every call runs, however many times the model
+            # asks for it.
+            #
             # TODO: EXERCISE(stage-2)
 
-            if parsed:
-                runnable.append(call)
-            else:
-                replies.append(_answer_invalid(call))
+            runnable.append(call)
 
         if runnable:
             # One invocation for the whole turn. The synthetic message exists because ToolNode
@@ -387,16 +355,14 @@ def build_graph(
         Return one of "tools", "nudge", or END.
 
         `is_done(state)` reads the verdict. `state["step"]` is the turn just taken and
-        `max_steps` the budget. `message.tool_calls` and `message.invalid_tool_calls` are what
-        the model asked for.
+        `max_steps` the budget. `message.tool_calls` is what the model asked for.
         """
         message = state["messages"][-1]
         assert isinstance(message, AIMessage)
-
         # Tool calls never end the run on their own — always execute them and loop back, so
         # the model can read the results. Note this skips the `is_done` check on purpose: the
         # check belongs on a turn where the model had nothing more to do.
-        if message.tool_calls or message.invalid_tool_calls:
+        if message.tool_calls:
             return "tools"
 
         # Prose. This is the only place the run can end successfully — and it ends because the

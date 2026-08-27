@@ -151,14 +151,11 @@ files:
   - name: agentlang/agent/graph.py
     visible: true
     placeholders:
-      - offset: 9152
-        length: 70
-        placeholder_text: "#TODO: EXERCISE(stage-2)"
-      - offset: 17157
-        length: 870
-        placeholder_text: "# TODO: Stage 2"
-      - offset: 21643
-        length: 637
+      - offset: 14919
+        length: 812
+        placeholder_text: "# TODO: EXERCISE(stage-2)"
+      - offset: 19204
+        length: 607
         placeholder_text: "# TODO"
         dependency:
           section: agentfix
