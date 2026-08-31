@@ -11,10 +11,25 @@ python run.py doctor
 
 You never need to change directory, and you never need to leave the Course View.
 
-If that says it cannot find the agent's code, open the next lesson — **Build the agent** — and
+If that says it cannot find the agent's code, open the next lesson — **Agent with no framework** — and
 click its first step once, then come back. The guided project's working directory is created the
 first time you open it. You will run `doctor` again there anyway, so you can also just read on
 and do it then.
+
+## One doctor per agent
+
+This course contains three agents, and every command — `doctor` included — runs against one of
+them. The first word chooses which:
+
+```bash
+python run.py doctor                  # Agent with no Framework  (the default)
+python run.py agentlang doctor        # What about frameworks?
+python run.py agentgraph doctor       # What about thinking?
+```
+
+The `[run.py]` line printed before every command names the directory it chose, so which agent ran
+is never a guess. If it says it cannot find that agent's code, open the lesson once and click its
+first step — the working directory is created the first time you do.
 
 ## What `doctor` reports
 

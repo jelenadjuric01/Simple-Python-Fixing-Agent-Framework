@@ -1,7 +1,6 @@
-# Now point it at a real model
+# Now try it at a real model
 
-Every test by default runs against a scripted fake model. That was deliberate — the exercises
-must not depend on your Ollama setup. Now use the real one.
+Lets see how this no framework agent works with a real model and tasks.
 
 From the terminal at the course root:
 
@@ -25,7 +24,7 @@ You can try running a testing suite of all three workshop tasks.
 
 # How well does it actually work?
 
-This step is discussion, not an exercise — do not run a live eval, it takes 8 minutes. The
+This is a discussion, not an exercise — do not run a live eval, it takes 8 minutes. The
 numbers below are pre-computed and shipped with the repo.
 
 ## HumanEvalFix (20 tasks)

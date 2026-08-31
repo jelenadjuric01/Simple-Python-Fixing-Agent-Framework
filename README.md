@@ -1,197 +1,64 @@
-# agentfix
+# agentfix — three editions of one coding agent
 
-A teaching repository for a workshop that shows developers new to agents how a coding
-agent actually works, by having them build one. You write three pieces of a real agent yourself —
-a tool and its JSON schema, the loop's tool dispatch, and a verification-based stop condition —
-then watch it fix real bugs with a real model. The default path uses [JetBrains
-Mellum2](https://huggingface.co/JetBrains/Mellum2-12B-A2.5B-Instruct-GGUF) locally through Ollama;
-a smaller local Qwen model is the fallback, and browser notebook paths are available for learners
-who cannot run either model comfortably on their own machine. There is no framework: the loop
-itself is about 15 lines and the rest of `run_agent` is tracing and token accounting.
+A teaching repository for a workshop that shows developers new to agents how a coding agent
+actually works — and then what changes when you put a framework and a reasoning model underneath
+it. The same bug-fixing agent is built three times:
 
-Every exercise test runs against a scripted fake model, so the core workshop does not depend on
-real inference working. The local-model paths preserve the IDE lesson as written. The notebook
-paths are different: they are untested and require a notebook-specific version of the **Build the
-agent** lesson because learners edit and run the agent from the notebook environment instead of
-following the IDE flow unchanged.
+| Edition | Package | Model | Framework |
+|---|---|---|---|
+| Agent with no framework | `agentfix` | Mellum2 **Instruct** | none — a `for` loop |
+| What about frameworks? | `agentlang` | Mellum2 **Instruct** | LangGraph + LangChain |
+| What about thinking? | `agentgraph` | Mellum2 **Thinking** | LangGraph + LangChain |
+
+You read the first one. You write the parts of the second and third that no framework can write
+for you: **where a run is allowed to end**, and **what to do about a model that has stopped making
+progress**. Everything else — the tools, the sandbox, the tracer, the task loader, the CLI — is
+written and locked, and the comments in it are part of the lesson.
+
+The default path uses [JetBrains Mellum2](https://huggingface.co/JetBrains) locally through
+Ollama; smaller local models are the fallback, and a browser notebook path exists for learners who
+cannot run either comfortably. Every graded exercise runs against a scripted **fake** model, so the
+whole course can be finished offline. Running your finished agent against a real model is the
+reward, not a prerequisite.
 
 ## Start here
 
-This README is the single reference for the workshop. If you are taking the course in the IDE,
-the wording in the setup, build, real-model, and next-step sections intentionally stays close to
-the lesson text so it is easy to recognize where you are.
+This README is the single reference for the workshop. The wording of each lesson section stays
+close to the lesson text in the IDE so it is easy to recognise where you are.
 
-### Workshop path
+### Course map
 
-1. [What you are about to build](#what-you-are-about-to-build)
-2. [What is an agent?](#what-is-an-agent)
-3. [Understand the repository](#what-will-you-find-in-this-repo-and-how-to-understand-it)
-4. [Set up the model](#setting-up-one-command)
-5. [Point it at a real model](#now-point-it-at-a-real-model)
-6. [Learn the command-line workflow](#command-reference)
-7. [Use the reference sections when you need them](#reference)
-8. [Continue with next steps](#next-steps)
-
----
-
-## What you are about to build
-
-The whole agent is in front of you. Every file is readable — the comments are part of the
-lesson — but only two files are yours to edit, and you will edit them one piece at a time:
-
-| Stage | You write | File |
+| Lesson | Steps | You write |
 |---|---|---|
-| 1 | the `run_tests` tool and its JSON schema | `agentfix/tools/tests_tool.py` |
-| 2 | the loop's tool dispatch | `agentfix/agent/loop.py` |
-| 3 | the stop condition | `agentfix/agent/loop.py` |
+| **Setting up and doctor check** | Setup, Doctor Check | — |
+| **Agent with no framework** | Intro and Structure, Real Model | — (read it, run it) |
+| **What about frameworks?** | Intro and Structure, Stage 1, Stage 2, Run for Real | the graph's routing, and the loop guard |
+| **What about thinking?** | Stage 1, Run for Real | what counts as acting, the idle counter, the nudge choice, the routing tail |
 
-Three ideas, in order: an agent needs **tools**, a **loop** that feeds tool results back to
-the model, and a way to know when it is **done** that does not depend on the model's opinion.
+### One command shape, three agents
 
-Everything else — the CLI, the sandbox, the tracer, the task loader — is already written and
-locked. Read as much of it as you like. 
+Every command in the course runs from the terminal at the **course root**, through `run.py`. The
+first word picks which edition it runs against:
 
-## What is an agent?
-
-Loop, tools, verification.
-
-An agent is a while-loop around a chat model that can call functions and sees the result.
-Nothing more magical than that.
-
-That definition is not a simplification for this course — it is literally what you are about
-to build. The loop in this repo is about 15 lines. The rest of `run_agent` is tracing and token
-accounting: bookkeeping around the loop, not the loop itself.
-
-Keep this in your head as you go through the next few steps and into the framework lesson: at
-every point where the mechanics feel like they are piling up, ask which of the three ideas —
-loop, tools, verification — the code in front of you belongs to.
-
-### What will you find in this repo and how to understand it?
-
-
-If you would like to see a presentation that goes with this workshop, go to: [link](https://docs.google.com/presentation/d/1ky_-18N9A2r5ysYGqia9yVgu9yuP9o6pOVE6g6Hy0ns/edit?usp=sharing). This is optional.
-
-```text
-agentfix/
-├── agent/
-│   ├── loop.py
-│   └── trace.py
-│
-├── eval/
-│   ├── runner.py
-│   └── humanevalfix.py
-│
-├── llm/
-│   ├── client.py
-│   ├── fake.py
-│   └── types.py
-│
-├── sandbox/
-│   ├── base.py
-│   ├── subprocess_backend.py
-│   └── docker_backend.py
-│
-├── tasks/
-│   └── loader.py
-│
-├── tools/
-│   ├── base.py
-│   ├── fs.py
-│   └── tests_tool.py
-│
-├── config.py
-├── runner.py
-└── cli.py
-
-results/
-└── precomputed/
-    ├── humanevalfix.json
-    └── workshop.json
-
-scripts/
-└── vendor_humanevalfix.py
-
-tasks/
-├── humanevalfix/
-│   └── subset.json
-└── workshop/
-    ├── 01-shopcart/
-    ├── 02-invoice/
-    └── 03-parser/
-
-Dockerfile.sandbox
-Modelfile
+```bash
+python run.py doctor                  # Agent with no framework   (the default)
+python run.py agentlang doctor        # What about frameworks?
+python run.py agentgraph doctor       # What about thinking?
 ```
 
-#### `agent/` — Agent logic
+You never need to change directory, and you never need to leave the Course View — `run.py` finds
+the guided project's working directory for you. The `[run.py]` line printed before every command
+names the directory it chose, so which agent ran is never a guess. If it cannot find an edition's
+code, open that lesson once and click its first step: the working directory is created the first
+time you do.
 
-The core of the project. `loop.py` contains the actual agent loop: it sends the conversation to the model, executes requested tools, feeds results back, and continues until the tests pass or a limit is reached. `trace.py` records what happened during a run.
-
-#### `llm/` — Model interface
-
-Everything related to communicating with the language model. `client.py` contains the real OpenAI-compatible client used with Ollama/vLLM, while `fake.py` provides a deterministic fake model for testing. `types.py` defines the common interfaces and data structures used by both.
-
-#### `tools/` — Agent capabilities
-
-Defines what the model is allowed to do. `base.py` provides the tool abstraction and registry, `fs.py` implements filesystem tools such as listing, reading, and writing files, and `tests_tool.py` lets the agent run the project's tests.
-
-#### `sandbox/` — Safe code execution
-
-Controls where and how commands are executed. The default backend uses hardened subprocess execution, while the Docker backend provides stronger isolation when needed.
-
-#### `tasks/` — Task loading
-
-`loader.py` turns a task definition into a `Task` and creates a temporary workspace containing a fresh copy of the buggy project for the agent to modify.
-
-#### `eval/` — Evaluation
-
-Runs the agent across collections of tasks and records metrics such as pass rate, number of steps, token usage, and execution time. `humanevalfix.py` provides support for the HumanEvalFix benchmark subset.
-
-#### Top-level `agentfix` modules
-
-* `config.py` — model and environment configuration.
-* `runner.py` — connects a task, workspace, tools, model client, and agent loop into one complete solve operation.
-* `cli.py` — command-line interface for commands such as `solve` and `eval`.
-
-#### `tasks/` — Buggy projects / benchmark inputs
-
-Contains the actual tasks given to the agent. `workshop/` contains small example projects such as `01-shopcart`, `02-invoice`, and `03-parser`. `humanevalfix/` contains the selected HumanEvalFix benchmark tasks.
-
-#### `results/` — Evaluation results
-
-Stores precomputed evaluation outputs, allowing results to be inspected or compared without rerunning the entire benchmark.
-
-#### `scripts/` — Project utilities
-
-Contains development/helper scripts, such as `vendor_humanevalfix.py` for preparing the HumanEvalFix task data.
-
-#### Runtime configuration
-
-`Dockerfile.sandbox` defines the isolated Docker environment used by the Docker sandbox backend, while `Modelfile` configures the local Ollama model used by the agent.
-
-#### Overall flow
-
-```text
-Task
-  ↓
-runner.py
-  ↓
-temporary workspace
-  ↓
-ToolRegistry + LLM client
-  ↓
-agent/loop.py
-  ↓
-run_tests → read files → write fix → run_tests
-  ↓
-AgentResult
-  ↓
-evaluation / results
-```
-
-The main idea is that **`agent/loop.py` decides what happens next, `llm/` talks to the model, `tools/` gives the model actions, and `sandbox/` executes those actions safely**. Everything else primarily prepares tasks, wires those pieces together, or evaluates the result.
+The three ideas the whole course is about, in every edition: **tools**, a **loop** that feeds tool
+results back to the model, and a way to know when it is **done** that does not depend on the
+model's opinion.
 
 ---
+
+# Lesson 1 — Setting up and doctor check
 
 ## Setting up: one command
 
@@ -213,7 +80,7 @@ you. `setup.py` does not touch your interpreter's packages; it only sets up the 
 
 | Tier | Best for | RAM on learner machine | Model environment | Status |
 |---|---|---:|---|---|
-| `mellum2` (default) | laptops that can comfortably run Mellum2 | 16 GB+ | local Ollama, `http://localhost:11434/v1` | reference path |
+| `mellum2` (default) | laptops that can comfortably run Mellum2 | 16 GB+ | local Ollama, `http://localhost:11434` | reference path |
 | `qwen` | laptops that cannot hold the 8 GB Mellum2 model | 8–16 GB | `qwen2.5-coder:1.5b` locally through Ollama | local fallback |
 | `colab` | Chromebooks, thin laptops, anyone who prefers a browser | under 8 GB, or any | Google Colab notebook — `notebooks/agentfix.ipynb` | **tested** |
 
@@ -388,180 +255,561 @@ cannot fix. Good enough to see the loop work; not the demo model.
 
 ### The Colab tier
 
-Use `notebooks/agentfix.ipynb` for the browser-based Google Colab path. The model, Ollama
-process, repository, edits, and test commands run inside the Colab runtime rather than on the
-learner's laptop. This path has been tested end to end.
+Use `notebooks/agentfix.ipynb` for the browser-based Google Colab path. The model, Ollama process,
+repository, edits and test commands all run inside the Colab runtime rather than on the learner's
+laptop.
 
-#### How the Colab tier changes the Build the agent lesson
+Colab is not a drop-in replacement for the IDE setup. The exercises are the same files and the same
+decisions, but the workflow is not: learners edit the repository files from the notebook
+environment and run the exercise tests from notebook cells, so the IDE-specific checks,
+file-navigation instructions and terminal steps in each lesson need their notebook equivalents.
+Keep the lessons and their stages in the same order; only the environment changes.
 
-Google Colab is not a drop-in replacement for the IDE setup. Learners still build the same three
-pieces of the agent in the same files:
+## Check your setup
 
-1. the `run_tests` tool and its JSON schema,
-2. the loop's tool dispatch,
-3. the verification-based stop condition.
+```bash
+python run.py doctor
+```
 
-What changes is the workflow. Instead of following the IDE lesson literally, Colab users edit the
-repository files from the notebook environment and run the exercise tests from notebook cells.
-IDE-specific checks, file-navigation instructions, and terminal steps in **Build the agent** need
-their Colab equivalents.
+If that says it cannot find the agent's code, open the **Agent with no framework** lesson and
+click its first step once, then come back.
 
-Keep the three stages in the same order; only the environment and lesson instructions change.
+### One doctor per agent
+
+`doctor` runs against one edition, like every other command:
+
+```bash
+python run.py doctor                  # Agent with no framework
+python run.py agentlang doctor        # What about frameworks?
+python run.py agentgraph doctor       # What about thinking?
+```
+
+The first two share the model `setup` installs, so both should report READY straight away.
+
+**`agentgraph` is worth checking now rather than three lessons from now.** That lesson runs the
+*Thinking* checkpoint, and its `doctor` adds two checks the others do not have: that the model
+**actually reasons**, and that it can **call a tool while doing it**. Neither failure is loud — a
+model with no thinking mode does not error, it just quietly behaves like the Instruct model from
+lesson 2, and every reasoning-shaped thing in the trace disappears.
+
+If `agentgraph doctor` reports a missing model, install it and run it again:
+
+```bash
+ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M
+ollama create agentgraph-mellum2-thinking -f Modelfile
+```
+
+Run that from the **What about thinking?** lesson's directory so it picks up that lesson's own
+`Modelfile` — the one carrying `PARAMETER num_ctx 16384` for the Thinking model. On the small tier
+the equivalent is `qwen3:1.7b`: the smallest thing that both thinks and calls tools. The
+`qwen2.5-coder:1.5b` fallback used by the other lessons has no thinking mode at all, so it cannot
+stand in here.
+
+### What `doctor` reports
+
+It checks your Python version and free RAM, that Ollama is installed, that its server answers,
+that the derived model exists, that the loaded context window is 16,384, does one warmed-up timed
+generation, and runs one sandboxed test execution. It prints `[PASS]`/`[FAIL]` per check and a
+final `READY <rate> tok/s`, or a remedy command for each failure.
+
+Two lines decide your tier:
+
+- **`ram`** — whether you can run an 8 GB model comfortably. This is the line `setup.py` uses to
+  choose between the `mellum2` tier and the smaller fallback.
+- **`context window`** — whether the `ollama create` step actually took effect. If it reads
+  `4096` instead of `16384`, that step was skipped, and the agent will lose its own system prompt
+  on long runs: Ollama's default context drops the *earliest* messages first, and the earliest
+  message is the one telling the agent it is not finished until the tests pass.
+
+If either looks wrong, fix it before continuing.
 
 ---
 
-## Now point it at a real model
+# Lesson 2 — Agent with no framework
 
-Every check so far ran against a scripted fake model. That was deliberate — the exercises
-must not depend on your model setup. Now use a real model.
+Nothing to write here. Read the agent, run it, and form an opinion about which parts of it are
+*this project* and which parts are plumbing a framework could own — because lesson 3 answers that
+question with code.
 
-**The `mellum2` and `qwen` tiers (local):** run the commands below from the terminal at the
-course root.
+## What is an agent?
 
-**The `colab` tier:** run the equivalent commands from notebook cells after you have completed
-the Colab version of **Build the agent**. The commands and expected agent behavior are
-the same, but the notebook environment replaces the IDE/terminal workflow.
+Loop, tools, verification.
 
-    python run.py solve tasks/workshop/01-shopcart --verbose
+An agent is a while-loop around a chat model that can call functions and sees the result. Nothing
+more magical than that.
 
-Then the harder one, where the bug is **not** in the file the failing test points at — which
-is why `list_files` and `read_file` earn their place:
+That definition is not a simplification for this course — it is literally what is in front of you.
+The loop in `agentfix/agent/loop.py` is about 15 lines. The rest of `run_agent` is tracing and
+token accounting: bookkeeping around the loop, not the loop itself.
 
-    python run.py solve tasks/workshop/02-invoice --verbose
+At every point where the mechanics feel like they are piling up, ask which of the three ideas —
+loop, tools, verification — the code in front of you belongs to.
 
-`--verbose` prints the trace you wired up in Stage 2. Read it. You should see the model call
-`run_tests`, look around, write a file, and run the tests again. That last call is the one
-that ends the run, because of what you wrote in Stage 3.
+## What you will find in this repo
 
-If it burns all ten steps and prints `NOT SOLVED`, that is not necessarily your bug — real
-models do not fix every task, and the smaller Qwen fallback is less reliable at multi-step tool use
-than Mellum2. 
+```text
+agentfix/
+├── agent/
+│   ├── loop.py
+│   └── trace.py
+│
+├── eval/
+│   ├── runner.py
+│   └── humanevalfix.py
+│
+├── llm/
+│   ├── client.py
+│   ├── fake.py
+│   └── types.py
+│
+├── sandbox/
+│   ├── base.py
+│   ├── subprocess_backend.py
+│   └── docker_backend.py
+│
+├── tasks/
+│   └── loader.py
+│
+├── tools/
+│   ├── base.py
+│   ├── fs.py
+│   └── tests_tool.py
+│
+├── config.py
+├── doctor.py
+├── runner.py
+└── cli.py
 
-You can try running a testing suite of all three workshop tasks. 
-    
-    python run.py eval --suite workshop --limit 3
+results/precomputed/     shipped eval output, so numbers can be discussed without an 8-minute wait
+scripts/                 vendor_humanevalfix.py, which prepares the benchmark subset
+tasks/
+├── humanevalfix/subset.json
+└── workshop/{01-shopcart,02-invoice,03-parser}
 
-No Check on this step. Nothing here is graded — it either fixes the bug or it does not, which
-is rather the point of the whole course.
+Dockerfile.sandbox       the isolated environment the Docker backend runs tests in
+Modelfile                the derived Ollama model carrying num_ctx 16384
+```
+
+**`agent/`** — the core. `loop.py` sends the conversation to the model, executes requested tools,
+feeds results back, and continues until the tests pass or a limit is reached. `trace.py` records
+what happened.
+
+**`llm/`** — talking to the model. `client.py` is the real client used with Ollama; `fake.py` is a
+deterministic fake model for the tests; `types.py` holds the interfaces both share.
+
+**`tools/`** — what the model is allowed to do. `base.py` is the tool abstraction and registry,
+`fs.py` implements listing, reading and writing files, `tests_tool.py` runs the project's tests.
+
+**`sandbox/`** — where and how commands execute. The default backend is a hardened subprocess; the
+Docker backend is real isolation.
+
+**`tasks/`** — `loader.py` turns a task definition into a `Task` and creates a temporary workspace
+holding a fresh copy of the buggy project.
+
+**`eval/`** — runs the agent across a collection of tasks and records pass rate, steps, tokens and
+time. `humanevalfix.py` supports the vendored benchmark subset.
+
+**Top level** — `config.py` (model and environment settings), `runner.py` (connects task,
+workspace, tools, client and loop into one solve), `doctor.py` (environment checks), `cli.py`
+(`doctor`, `solve`, `eval`).
+
+### Overall flow
+
+```text
+Task
+  ↓
+runner.py
+  ↓
+temporary workspace
+  ↓
+ToolRegistry + LLM client
+  ↓
+agent/loop.py
+  ↓
+run_tests → read files → write fix → run_tests
+  ↓
+AgentResult
+  ↓
+evaluation / results
+```
+
+**`agent/loop.py` decides what happens next, `llm/` talks to the model, `tools/` gives the model
+actions, `sandbox/` executes them safely.** Everything else prepares tasks, wires the pieces
+together, or scores the result.
+
+## Real Model
+
+```bash
+python run.py solve tasks/workshop/01-shopcart --verbose
+```
+
+Then the harder one, where the bug is **not** in the file the failing test points at — which is
+why `list_files` and `read_file` earn their place:
+
+```bash
+python run.py solve tasks/workshop/02-invoice --verbose
+```
+
+`--verbose` prints the trace. You should see the model call `run_tests`, look around, write a
+file, and run the tests again; that last call is what ends the run. If it burns all ten steps and
+prints `NOT SOLVED`, that is not a bug — real models do not fix every task, and the smaller
+fallback model is noticeably less reliable at multi-step tool use.
+
+All three workshop tasks at once:
+
+```bash
+python run.py eval --suite workshop --limit 3
+```
+
+On the Colab tier, run the equivalent commands from notebook cells. The commands and the expected
+agent behaviour are the same; the notebook replaces the IDE terminal.
+
+## Sandbox safety
+
+The agent executes model-written code on your machine. Two boundaries, at two different layers:
+
+- **The tool layer confines paths.** `resolve_in_root` in `tools/fs.py` rejects any path that
+  would escape the task's working directory *before* a read or write happens. The model can ask
+  for `../../etc/passwd`; the tool refuses. The write tool narrows it further — it is constructed
+  with the set of files that existed in the pristine template, so the agent cannot create a file
+  and then start writing to it.
+- **The sandbox confines execution.** When test code runs under the Docker backend it gets no
+  network, memory/pid/CPU caps, and a non-root user, so code that behaves badly — an infinite
+  loop, an attempt to phone home, a fork bomb — is contained rather than trusted.
+
+See [What the container actually gives you](#what-the-container-actually-gives-you) for the exact
+flags, and the [command reference](#command-reference) for how to switch backends.
 
 ---
 
-## Reference
+# Lesson 3 — What about frameworks?
 
-The sections below are the deeper repository reference: commands, Docker isolation,
-course/repository structure, custom tasks, measured performance, platform notes, and known
-limitations. In the Course View, use `python run.py ...` from the course root; `run.py` finds the
-guided project's working directory for you, so you do not need to `cd` into the hidden lesson
-directory.
+Same agent, rebuilt on LangGraph for the graph and LangChain for the model and tool interfaces.
+The question the lesson exists to answer: *which parts of my agent does a framework actually write
+for me?*
+
+## What the framework gives you
+
+- **`ToolNode` runs the calls.** Dispatch, ordering, unknown tool names, argument validation,
+  error recovery — one invocation per turn.
+- **`add_messages` makes the history append-only by construction**, which keeps the prompt prefix
+  byte-stable and the model server's KV cache valid.
+- **Reducers on `AgentState`** accumulate the counters, so `agent_node` returns deltas and never
+  reads the old value.
+- **Callbacks carry the trace.** No node contains tracing code; the tracer is handed to the graph
+  once.
+- **The checkpointer** snapshots state after every node, so a run can be resumed or inspected step
+  by step.
+
+## What it does not give you
+
+- **The stop condition.** `is_done` believes the test suite, not the model's claim about its own
+  work. No framework can supply that — it is a fact about *your* task.
+- **The loop guard.** LangGraph has no hook for it at all. LangChain 1.x gives you the seam
+  (`wrap_tool_call`), but "three identical calls means the model is stuck" is still your policy.
+- **The step budget.** `recursion_limit` counts node executions, not model turns.
+
+Those three are exactly what you write in this lesson.
+
+`agentlang/agent/prebuilt.py` builds the same agent again out of `create_agent`, the framework's
+prebuilt loop, purely so the comparison is readable. It is not the
+path `solve` takes, and its docstring records what is still missing there: the verdict cannot
+survive a checkpoint, and the guard can answer a repeated call but not abandon a stuck run.
+
+## What is different in the tree
+
+`tools/`, `sandbox/`, `tasks/`, `eval/` and the top-level modules are the same shape as lesson 2.
+The agent is what changed:
+
+```text
+agentlang/agent/
+├── graph.py       the whole agent: 3 nodes, 2 routers — the file you edit
+├── state.py       AgentState and its reducers, including the tests_passed verdict
+├── prebuilt.py    the same agent via create_agent, for comparison only
+└── trace.py       tracing, via callbacks
+```
+
+`state.py` is worth reading before you touch `graph.py`. Making the loop's local variables an
+explicit typed state is the biggest change the framework asks for, and it buys two things: any
+node can read the whole state, and the state can be checkpointed. It costs one thing: a node
+returns a *partial* state that LangGraph merges, so `counter += 1` is not something a node can
+do — hence the reducers.
+
+One detail that took a while to see, and it is in the docstrings: checkpointing is only as good as
+what you put in the state. While the test verdict lived on the `run_tests` tool, the graph was
+resumable and the *agent* was not.
+
+## Stage 1 — where a run is allowed to end
+
+`route_after_agent` in `agentlang/agent/graph.py`. It looks at the model turn that just happened
+and returns `"tools"`, `"nudge"`, or `END`.
+
+This is the only place a run can end **successfully**, and the framework has no opinion about it
+whatsoever. The rules, in the order they have to be checked:
+
+1. Tool calls never end a run on their own — execute them and loop back, so the model sees the
+   results. This branch deliberately skips the `is_done` check: "done" belongs on a turn where the
+   model had nothing more it wanted to do.
+2. On a prose turn, the verdict decides. `is_done` reads `state["tests_passed"]`, which only ever
+   becomes true by folding a real `ExecResult` out of a tool answer — so a model that declares
+   victory without running the tests is not believed.
+3. The step budget outranks the nudge, or a stubborn model never stops.
+4. Otherwise, nudge it and go again.
+
+## Stage 2 — refusing a call the model already made
+
+The loop guard, inside `tools_node`. Small models get stuck in the plainest way possible: they
+call `read_file` on the same path, get the same answer, and call it again until the budget runs
+out.
+
+Three things make it work, and all three are policy rather than plumbing:
+
+- **What counts as the same call.** `call_signature` hashes the tool name plus its *sorted*
+  arguments, so key order in the model's JSON cannot defeat the guard.
+- **A refused call still gets an answer.** The API requires exactly one reply per
+  `tool_call_id`; drop one and the *next* request is rejected, one turn away from the code that
+  caused it. So a refusal appends a `ToolMessage` carrying the guard's text and moves on.
+- **The counter moves both ways.** A repeat increments it; a call that is not a repeat resets it
+  and becomes the new baseline. `route_after_tools` abandons the run once it reaches
+  `MAX_GUARD_HITS`.
+
+A guarded call also gets a `tracer.note` line — the one line in a trace that no tool produced.
+Without it, a guarded run looks like a model that mysteriously stopped making calls.
+
+## Run for Real
+
+```bash
+python run.py agentlang doctor
+python run.py agentlang solve tasks/workshop/01-shopcart --verbose
+python run.py agentlang solve tasks/workshop/02-invoice --verbose
+python run.py agentlang eval --suite workshop --limit 3
+```
+
+Two lines in the trace are yours. The run does not end on the green test result — it ends one turn
+later, on the model's prose reply, because that is where Stage 1 put the `is_done` check. And if
+the model gets stuck you will see `guarded — identical call #2 in a row`.
+
+That extra closing turn is a deliberate choice, and it is not free: measured on `01-shopcart` it
+cost 6.5s of a 19.1s run. What it buys is the closing statement itself — the only prose in a run,
+arriving *after* the fix was verified, which is the evidence for the claim that this agent does not
+reason.
+
+Safety is unchanged: `tools/` and `sandbox/` are the same code as lesson 2. Confinement is a
+property of the tools and the sandbox, not of the loop that calls them.
+
+---
+
+# Lesson 4 — What about thinking?
+
+## What thinking actually is
+
+Same 12B/A2.5B weights, different checkpoint: this one is trained to reason inside
+`<think>...</think>` before it answers. One flag on the client — `reasoning=True` — asks Ollama for
+that thinking and hands it back on **its own channel**,
+`AIMessage.additional_kwargs["reasoning_content"]`, instead of leaving the tags inline in
+`content`. `reasoning_of` in `agentgraph/agent/trace.py` is the single line that knows where it
+lives.
+
+That channel matters more than it sounds. With the tags inline, the model's deliberation ends up in
+the next prompt, in the trace, and — the expensive one — inside the "complete file contents" that
+`write_file` is handed.
+
+**There is no think step and no new node.** This is what ReAct means: the model thinks and acts in
+the *same* turn. The graph from lesson 3 is unchanged in shape.
+
+## What changed, and what did not
+
+Not the graph. Two *decisions* about what a turn was:
+
+- **A turn with no tool call is no longer rare.** The Instruct model acted on every turn but the
+  last, so "replied without acting" meant "finishing up" and the answer was a nudge. A thinking
+  model will spend an entire turn reasoning and ask for nothing — and nudging that forever is an
+  unbounded loop wearing a step budget as a disguise. Hence `idle_turns` in `AgentState` and
+  `MAX_IDLE_TURNS = 2` in `graph.py`: a loop guard for thinking, alongside the one for actions.
+- **The action guard must ignore reasoning.** `call_signature` still hashes only the tool name and
+  arguments. A model that reasons its way to the same useless call by a fresh route every time is
+  still stuck, and novel thinking must not buy a repeated call another turn.
+
+Also new: `reasoning_turns` in the state, so a run can report how many of its turns actually
+thought — the number the previous edition could not produce.
+
+## Stage 1 — reasoning is not an action
+
+Four `TODO` markers in `agentgraph/agent/graph.py`, all one decision split four ways:
+
+| # | Where | What it decides |
+|---|---|---|
+| 1 | `acted()` | what counts as a turn that *did* something — a tool call, not prose and not thought |
+| 2 | `agent_node`'s returned state | keeping `idle_turns` current |
+| 3 | `nudge_node` | which of the two corrections to send |
+| 4 | `route_after_agent` | the answers for a turn that acted on nothing |
+
+Two traps worth naming:
+
+- `idle_turns` is the one key in the state with **no reducer**, because it has to *reset* — a
+  reducer is handed only `(current, incoming)` and cannot tell "one more idle turn" from "that turn
+  acted, start again". `agent_node` is its only writer and returns the absolute value.
+- In the routing, **the verdict goes before the idle guard**. A thinking turn on a suite that is
+  already green is a successful finish, not a stall. And the budget outranks the guard: a model out
+  of steps stops for that reason.
+
+The abandonment also gets a trace note, worded from what was observed — "no tool call", not "turns
+of reasoning". A turn can ask for nothing without having reasoned, and a trace line claiming
+deliberation that never happened is the exact failure this edition exists to fix.
+
+## Run for Real
+
+```bash
+python run.py agentgraph doctor
+python run.py agentgraph solve tasks/workshop/01-shopcart --verbose
+python run.py agentgraph eval --suite workshop --limit 3
+```
+
+Every model turn now prints a `thinks` line above what it did. Read one — that text is the plan the
+earlier editions never had. Two more things to watch for:
+
+- `(NO REASONING)` now means what it says. In lesson 3 it appeared on almost every turn, because
+  reasoning was read off `content`; here it prints only when the model genuinely skipped thinking.
+- Reason twice with no tool call and the run ends with
+  `abandoned — 2 consecutive turns with no tool call`. That is your Stage 1 guard.
+
+`max_tokens` went from 1024 to **4096** in this edition, because one reply is now the reasoning
+*plus* a complete file. Too low a cap truncates the reply and loses the tool call at the end of
+it — the model appears to stop acting for no reason.
+
+Safety is the same code again, with two names to get right — they fail at solve time, not build
+time:
+
+```bash
+python run.py agentgraph docker-build          # builds agentgraph-sandbox:latest
+AGENTGRAPH_SANDBOX=docker python run.py agentgraph solve tasks/workshop/01-shopcart --verbose
+```
+
+---
+
+# Reference
 
 ## Command reference
 
-All learner commands start from the terminal at the **course root**:
-
 ```bash
-python run.py <command> [arguments] [flags]
+python run.py [edition] <command> [arguments] [flags]
 ```
 
-The examples below say `python`, which is what the IDE's terminal gives you once the course's
-virtual environment is active. In a bare shell on Debian, ChromeOS or a fresh Linux there is no
-`python` — use `python3` there, exactly as in the setup step above.
+`edition` is `agentfix` (the default, so it can be omitted), `agentlang`, or `agentgraph` — as the
+first word, as `--agentlang`, or set once via `AGENT_EDITION` in `.agentfix.env`.
 
-`run.py` passes agent commands through to the AgentFix CLI and also provides helpers for running
-the project's `unittest` suite and building the Docker sandbox.
+The examples say `python`, which is what the IDE terminal gives you once the course's virtual
+environment is active. In a bare shell on Debian, ChromeOS or a fresh Linux there is no `python` —
+use `python3`.
+
+| Command | What it does |
+|---|---|
+| `doctor` | Checks this machine is ready for that edition. |
+| `solve <task_dir> [--verbose] [--max-steps N]` | Runs the agent on one task. |
+| `eval [--suite workshop\|humanevalfix] [--limit N]` | Runs the agent over a suite. |
+| `unittest <module> [-v]` | Runs that edition's test suite. |
+| `docker-build` | Builds that edition's sandbox image. |
 
 ### Solve one task
 
 ```bash
-python run.py solve <task_dir> [--verbose] [--max-steps N]
-```
-
-Examples:
-
-```bash
 python run.py solve tasks/workshop/01-shopcart
-python run.py solve tasks/workshop/01-shopcart --verbose
-python run.py solve tasks/workshop/02-invoice --max-steps 15 --verbose
+python run.py agentlang solve tasks/workshop/01-shopcart --verbose
+python run.py agentgraph solve tasks/workshop/02-invoice --max-steps 15 --verbose
 ```
 
 | Argument / flag | Meaning |
 |---|---|
-| `<task_dir>` | Required path to the task directory, for example `tasks/workshop/01-shopcart`. |
-| `--verbose` | Prints the agent trace: model turns, requested tool calls, tool results, and the path the agent took toward the final verdict. |
-| `--max-steps N` | Sets the maximum number of agent-loop steps allowed for this run. The default comes from the loop's `MAX_STEPS` setting. Raising it gives the model more chances to inspect, edit, and verify; lowering it gives you a stricter budget. |
+| `<task_dir>` | Required path to the task directory, e.g. `tasks/workshop/01-shopcart`. |
+| `--verbose` | Prints the trace: model turns, requested tool calls, tool results, guard decisions, and (in `agentgraph`) the model's reasoning. |
+| `--max-steps N` | Model turns allowed for this run. Default is the edition's `MAX_STEPS`, which is 10. |
 
-At the end, `solve` prints `SOLVED` or `NOT SOLVED`, together with the task id, steps used, token
-count, and duration. The command exits successfully only when the task is solved.
+`solve` prints `SOLVED` or `NOT SOLVED` with the task id, steps used, token count and duration,
+and exits non-zero unless the task was solved — so `solve … && echo ok` behaves sensibly.
 
 ### Evaluate a suite
 
 ```bash
-python run.py eval [--suite workshop|humanevalfix] [--limit N]
-```
-
-Examples:
-
-```bash
 python run.py eval
-python run.py eval --suite workshop --limit 3
-python run.py eval --suite humanevalfix --limit 10
+python run.py agentlang eval --suite workshop --limit 3
+python run.py agentgraph eval --suite humanevalfix --limit 10
 ```
 
 | Flag | Meaning |
 |---|---|
-| `--suite workshop` | Runs the workshop task suite. This is the default when `--suite` is omitted. |
-| `--suite humanevalfix` | Runs the vendored HumanEvalFix subset instead of the workshop suite. |
-| `--limit N` | Runs at most `N` tasks from the selected suite. The default is `3`, which keeps local evaluation reasonably short. |
+| `--suite workshop` | The three workshop tasks. The default. |
+| `--suite humanevalfix` | The vendored HumanEvalFix subset. |
+| `--limit N` | At most `N` tasks. Default 3, because local evaluation is slow. |
 
-Use `eval` when you want aggregate behavior over several tasks rather than the detailed trace of a
-single solve.
+`eval` writes its output to that edition's `results/`, and every edition ships a precomputed run
+so the numbers can be discussed without waiting.
 
-### Build the Docker sandbox helper
-
-From the course root:
+### Run the tests
 
 ```bash
-python run.py docker-build
+python run.py agentlang unittest tests.test_task -v
+python run.py agentgraph unittest tests.test_task -v
 ```
 
-This runs the repository's Docker build command in the directory that contains
-`Dockerfile.sandbox`.
+Every exercise test drives the real graph against the real tools in a real temporary directory —
+only the model is scripted. Nothing in the suite needs Ollama running.
 
-Everything above runs the tests directly on your machine. The Docker path is different and narrower:
-it swaps out **one thing** — how `run_tests` executes the task's test suite — via the
-`AGENTFIX_SANDBOX` environment variable. The agent itself, the model client, and the file tools
-still run on the host either way. See `agentfix/sandbox/` for why the boundary sits there.
+### The container sandbox
 
-### Run the agent with the container sandbox
+The default subprocess backend is *hardened* — stripped environment, resource limits, a timeout —
+but it is not isolated: test code runs as your user and can reach your filesystem and the network.
+Switching backends swaps exactly **one** thing: how `run_tests` executes the task's suite. The
+agent, the model client and the file tools still run on the host either way.
+
+The environment variable and the image tag are per edition:
+
+| Edition | Variable | Image |
+|---|---|---|
+| `agentfix` | `AGENTFIX_SANDBOX=docker` | `agentfix-sandbox:latest` |
+| `agentlang` | `AGENTFIX_SANDBOX=docker` | `agentfix-sandbox:latest` |
+| `agentgraph` | `AGENTGRAPH_SANDBOX=docker` | `agentgraph-sandbox:latest` |
 
 ```bash
-# POSIX shells (macOS, Linux, WSL2) — inline, applies to this one command
-AGENTFIX_SANDBOX=docker python run.py solve tasks/workshop/01-shopcart --verbose
-AGENTFIX_SANDBOX=docker python run.py eval --suite workshop --limit 3
+# POSIX shells (macOS, Linux, WSL2)
+docker info
+python run.py agentlang docker-build
+AGENTFIX_SANDBOX=docker python run.py agentlang solve tasks/workshop/01-shopcart --verbose
 
-# ...or export it once for the whole shell session
-export AGENTFIX_SANDBOX=docker
-python run.py solve tasks/workshop/02-invoice --verbose
-unset AGENTFIX_SANDBOX          # back to the subprocess backend
+export AGENTFIX_SANDBOX=docker      # ...or for the whole session
+unset AGENTFIX_SANDBOX              # back to the subprocess backend
 ```
 
 ```powershell
 # Windows PowerShell — its own line, before the command
 $env:AGENTFIX_SANDBOX = 'docker'
-python run.py solve tasks/workshop/01-shopcart --verbose
+python run.py agentlang solve tasks/workshop/01-shopcart --verbose
 Remove-Item Env:\AGENTFIX_SANDBOX
 ```
 
 ### What the container actually gives you
 
-The default subprocess backend is *hardened* — stripped environment, resource limits, a timeout —
-but it is not isolated: test code runs as your user and can reach your filesystem and the network.
-The container is the real boundary:
+Every flag below is in `sandbox/docker_backend.py`, with the reasoning next to it:
+
+| Flag | Why |
+|---|---|
+| `--network none` | No network at all — the real difference from the subprocess backend. |
+| `--memory 512m`, `--pids-limit 128`, `--cpus 1` | A runaway test cannot take the machine down. |
+| `--user runner` | Not root, even inside the container. |
+| `--cap-drop ALL`, `--security-opt no-new-privileges` | Every Linux capability dropped, and no regaining them via setuid. |
+| `--read-only` plus `--tmpfs /tmp` | The container filesystem is immutable; scratch space is in memory and discarded. |
+| `--volume <workspace>:/work:ro` | The workspace is mounted **read-only** — the file tools write on the host, so the container never needs to. |
+| `--rm` | No state survives a run. |
+
+The image installs nothing: `Dockerfile.sandbox` is `python:3.12-slim`, a non-root user, and a
+workdir. Tests run with `python -m unittest discover -q`, which is in the standard library — so
+there is no dependency to pin and no drift between the two backends. That matters more than it
+sounds: both backends are the same oracle for the agent's fixes, and an oracle that changes with an
+environment variable is not one.
 
 ## Measured performance
 
-Measured on an Apple M4, 24 GB, against a local Ollama running
-`hf.co/JetBrains/Mellum2-12B-A2.5B-Instruct-GGUF-Q4_K_M`. Expect roughly 3-4x slower on an older
-Intel laptop.
+Throughput measured on an Apple M4, 24 GB, against a local Ollama running the Q4_K_M GGUF. Expect
+roughly 3–4× slower on an older Intel laptop.
 
 | Metric | Result |
 |---|---|
@@ -570,40 +818,93 @@ Intel laptop.
 | Cold model load | ~3.5s, one-time |
 | GGUF size on disk | 8.07 GB |
 | Loaded context window | 16,384 tokens (`ollama ps`, via the derived model) |
-| Workshop suite (`01`–`03`), pass@1 | 1.00 (3/3), 44.5s wall clock, peak prompt 1,456 tok |
-| HumanEvalFix (20 vendored tasks), pass@1 | 0.60 (12/20), median 7 steps, max 10, 185,235 tokens, 8m09s wall clock, peak prompt 2,998 tok |
 
-pass@1 on HumanEvalFix was **0.50 before** the loop's stop condition was made real. The old loop
-ended a run on any text-only reply, so four failures stopped at 3–5 steps of 10 with the budget
-unused; now a text-only reply while the tests are red gets a nudge and another step, and every one
-of the 8 remaining failures uses all 10 steps. The context-window fix landed in the same
-measurement, so the two effects are not separated — note that the largest single prompt was 2,998
-tokens against the old 3,072-token usable window, i.e. the longest runs really were at the edge.
-Nothing was tuned to move the number.
+### Three editions, the same 20 HumanEvalFix tasks, the same 10-step budget
 
-The wall-clock figure is exactly why that eval segment is demo-only in the workshop — it does
-not fit in a 90-minute session as a live activity. `results/precomputed/` ships both runs so
-students can discuss the numbers without waiting for them.
+| Edition | pass@1 | median steps | tokens | wall clock | peak prompt |
+|---|---|---|---|---|---|
+| No framework, Instruct | 0.60 (12/20) | 7 | 185,235 | 8m08s | 2,998 |
+| LangGraph, Instruct | 0.45 (9/20) | 10 | 237,651 | 8m15s | 3,929 |
+| **LangGraph, Thinking** | **0.80 (16/20)** | **5** | **415,333** | **52m25s** | **12,599** |
 
+Workshop suite (`01`–`03`), pass@1 1.00 in all three editions: 43.6s / 1m45s / 7m17s wall clock,
+peak prompt 1,456 / 1,574 / 6,163 tokens.
 
----
+**Thinking is the largest single move in the course.** It did not just solve more, it solved in
+*fewer* turns — fourteen of the sixteen successes took exactly five steps: run the tests, look,
+write, verify. Every one of the 23 thinking runs reasoned on every turn (`reasoning_turns` equals
+`steps_used` throughout), which closes the gap the earlier editions could only point at. Two of its
+four failures ended at 6 steps rather than 10, stopped by a guard rather than by the budget — a
+stuck thinking model is abandoned instead of nudged until the money runs out.
+
+**And it is expensive.** 1.75× the tokens for 6× the wall clock, and a peak prompt of 12,599
+against a 16,384-token window: reasoning is sent back with every subsequent request, so the history
+grows much faster than before. This agent is three-quarters of the way to overflowing its context
+on a benchmark of *small* bugs.
+
+**Do not read the 0.60 → 0.45 step as a cost of the framework.** Temperature is 0.6 in all three,
+so a single 20-task run is a noisy measurement, and the two Instruct editions take identical step
+counts (8, 8, 7) on the tasks they both solve. For scale: in the no-framework edition, making the
+stop condition real moved pass@1 from **0.50 to 0.60** on its own — larger than the gap between the
+first two rows. What moves the number is the prompt, the budget and the stop condition, not the
+plumbing.
+
+The wall-clock figures are why the HumanEvalFix eval is demo-only in a 90-minute session. Every
+edition ships its run under `results/`, so the numbers can be discussed without waiting for them.
+
+## Repository layout
+
+```text
+agentfix/                        the course section
+├── lesson_setup/                Setup, Doctor Check
+├── lesson_build/                Agent with no framework   → package agentfix
+├── lesson_langchain/            What about frameworks?    → package agentlang
+└── lesson_react/                What about thinking?      → package agentgraph
+
+run.py                           runs any edition from the course root
+setup.sh / setup.ps1 / setup.py  one-command model setup
+requirements.txt                 langgraph, langchain, langchain-ollama, datasets
+Modelfile                        the derived Ollama model for the default tier
+notebooks/agentfix.ipynb         the Colab path
+```
+
+Each lesson step keeps a complete, self-contained copy of its edition's code, which is how the
+JetBrains Academy framework-lesson format works: the step you have open is the project you are
+running. `run.py` resolves that for you — it probes the plugin-managed working directory first, so
+you run *your* work rather than the reference copy, and falls back to the authoring copy when there
+isn't one.
+
+## Known limitations
+
+- **One tool call at a time.** `max_concurrency=1` is not a performance setting; it is what keeps
+  the test result honest. Tool calls in one turn would otherwise execute in parallel, and a turn
+  that wrote a file and ran the tests together could measure the file as it was *before* the write.
+- **No context management.** Nothing trims or summarises old turns. It is the clearest gap in the
+  numbers above, and the first thing worth building next.
+- **The notebook path is untested** and needs a notebook-specific version of the lesson flow,
+  because learners edit and run the agent from the notebook environment rather than the IDE.
+- **`agentlang/agent/prebuilt.py` refuses a checkpointer** on purpose: the framework's prebuilt
+  agent carries its own state schema with nowhere to keep the verdict, so a resumed run recomputes
+  it from message artifacts the serialiser has already turned back into plain dicts, and a solved
+  task comes back unsolved.
 
 ## Next steps
 
-### The Thinking variant
+Roughly in order of what would pay off next on these numbers:
 
-The natural next step from here is the Mellum2 **Thinking** variant: same code, one environment
-variable, and it exposes visible `<think>` blocks showing the model's reasoning before it commits
-to a tool call or a final answer. Nothing about the loop, the tools, or the stop condition you
-built changes — only the model's own output gets richer.
+- **Context management** — trimming or summarising old turns, or dropping stale reasoning from the
+  history. What stands between this agent and a task bigger than a one-file bug.
+- **Planning as its own phase** — the model plans inside a turn now; nothing makes it commit to a
+  plan across turns or notice when it has abandoned one.
+- **Reflection / self-critique** — no separate pass where the model reviews its own diff before the
+  tests do.
+- **Parallel tool calls** — done properly, which means knowing which calls are safe to overlap.
+- **Multi-agent coordination** — one model, one graph, no delegation.
 
-### What was deliberately left out
+None of them is magic, and each is a fair amount of work. If you take one thing from the whole
+course, make it the stop condition: three editions in, the thing that decides whether an agent is
+trustworthy is still that it believes the test suite rather than the model.
 
-This course, like the workshop it is ported from, is scoped to three ideas: tools, a loop, and a
-verification-based stop condition. On purpose, it does not build:
+## License
 
-- **Planning** — no phase where the model lays out a multi-step plan before acting.
-- **Reflection / self-critique** — no separate pass where the model reviews its own output before
-  it counts.
-- **Parallel tool calls** — one tool call per turn, not several dispatched at once.
-- **Multi-agent coordination** — one model, one loop, no delegation to sub-agents.
+MIT — see [LICENSE](LICENSE).

@@ -1,7 +1,7 @@
 # What you are about to see
 
 The whole agent is in front of you. Every file is readable — the comments are part of the
-lesson.
+lesson. Focus on how things work and try to think what can be substituted with a framework.
 
 ## If you want to come back to everything in this file, see [README.md] in the additional files.
 

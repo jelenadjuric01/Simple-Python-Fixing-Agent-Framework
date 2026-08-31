@@ -103,7 +103,7 @@ def relative_files(root: Path) -> list[str]:
     for path in sorted(root.rglob("*.py")):
         if any(part in IGNORED_DIRS for part in path.parts):
             continue
-        found.append(str(path.relative_to(root)))
+        found.append(path.relative_to(root).as_posix())
     return found
 
 
@@ -211,7 +211,7 @@ class WriteFileTool(BaseTool):
         # case-variant alias of a real file ("Tests/TEST_CART.PY") does not match the template
         # entry it aliases, and is refused here even on a case-insensitive filesystem.
         if self.allowed is not None:
-            relative = str(target.relative_to(self.root.resolve()))
+            relative = target.relative_to(self.root.resolve()).as_posix()
             if relative not in self.allowed:
                 return NEW_FILE_HINT.format(path=path), None
 
