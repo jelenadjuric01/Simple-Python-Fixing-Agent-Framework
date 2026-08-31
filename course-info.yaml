@@ -2,7 +2,7 @@ type: marketplace
 title: Building a Python Fixing AI Agent using Lang Frameworks
 language: English
 summary: |
-  <p>Build a coding agent from scratch in three stages: a tool and its JSON schema, the loop that dispatches tool calls, and a stop condition based on verification by execution rather than the model's word.</p> <p>No framework. Every exercise is checked against a scripted fake model, so you can finish the whole course offline. Running your finished agent against a real local model is the reward, not a prerequisite.</p>
+  <p>The same Python bug-fixing agent, built three times: as a plain loop with no framework, then rebuilt on LangGraph and LangChain, then driven by a model that reasons before it acts.</p> <p>You start by reading a working agent, then write the parts no framework can write for you: where a run is allowed to end, and what to do about a model that has stopped making progress. Along the way you see what a framework actually gives you, what it leaves to you, and what reasoning costs in tokens, latency and context.</p> <p>Every exercise is checked against a scripted fake model, so you can finish the whole course offline. Running your finished agent against a real local model — JetBrains Mellum2 through Ollama — is the reward, not a prerequisite.</p>
 vendor:
   name: Jelena Duric
 programming_language: Python
