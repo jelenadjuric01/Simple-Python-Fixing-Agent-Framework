@@ -185,74 +185,142 @@ looks like a stupid model rather than a misconfigured one. The `Modelfile` route
 (`PARAMETER num_ctx 16384`) is one command, identical on every platform, and it survives
 whichever endpoint the client talks to. That is why this course derives the model.
 
-<details>
-<summary><b>If <code>setup.py</code> could not finish — the same steps by hand</b></summary>
+#### If setup could not finish — the same steps by hand
 
 `setup.py` prints the command it was about to run whenever it stops, so the fastest path is
-usually to run that one command yourself and start it again. The full sequence, per platform:
+usually to run that one command yourself and start the script again.
 
-**macOS**
+If you would rather do the whole thing by hand, open your operating system below. Each block is
+the complete sequence, in the order `setup.py` does it, and nothing in it depends on the other
+blocks. Every tier is **two** models — a coding one for the `agentfix` and `agentlang` lessons and
+a thinking one for `agentgraph` — so steps 4 and 5 happen twice.
 
-```bash
-brew install ollama
-brew services start ollama       # or: open -a Ollama, if you installed the app instead
-```
+<details>
+<summary><b>macOS</b></summary>
 
-Homebrew's `ollama` formula and the Ollama app are the same server on `localhost:11434` — use
-either, but not both at once. Without Homebrew, install from
-[ollama.com/download](https://ollama.com/download).
-
-**Linux and WSL2**
+**1. Python 3.12 or newer**
 
 ```bash
-curl -fsSL https://ollama.com/install.sh | sh
-sudo systemctl start ollama      # no systemd (common in WSL2): ollama serve &
+brew install python@3.12
 ```
 
-The install script registers a systemd service, so the server is usually already listening;
-`systemctl status ollama` tells you. A GPU is not required — CPU inference works, it is just
-slower than the numbers below.
-
-**Windows — WSL2 (recommended)**
-
-In PowerShell, once:
-
-```powershell
-wsl --install -d Ubuntu
-```
-
-Then follow the Linux steps inside the Ubuntu shell and do everything else — `ollama`, the
-exercises — inside WSL2. Keep the clone on the Linux filesystem (`~/agentfix-workshop`, not
-`/mnt/c/...`); test discovery across the `/mnt/c` bridge is slow enough to be annoying.
-
-WSL2 gets a fraction of your total RAM by default (50%, capped at 8 GB on older builds), and
-that fraction — not your machine's spec sheet — is what has to hold an 8 GB model, so it is also
-the number `setup.py` picks the tier from. If `free -g` inside WSL2 shows less than 16 GB, raise
-it in `%UserProfile%\.wslconfig`:
-
-```ini
-[wsl2]
-memory=16GB
-```
-
-then `wsl --shutdown` in PowerShell, reopen the shell, and run `./setup.sh` again.
-
-**Windows — native PowerShell** (works for the exercises; sandbox untested)
-
-```powershell
-winget install -e --id Ollama.Ollama
-ollama serve                     # or start the Ollama tray app
-```
-
-**Python 3.12 where `apt` has no candidate for it** (Ubuntu 22.04, Debian, ChromeOS):
+No Homebrew? Install [uv](https://docs.astral.sh/uv/) and let it fetch a real CPython:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv python install 3.12
-uv python find 3.12                 # prints the path setup.py would re-execute itself with
+uv python find 3.12                 # the path setup.py would re-execute itself with
 ```
 
-To give the course an environment with pip in it, built on that interpreter:
+**2. Install Ollama**
+
+```bash
+brew install ollama
+```
+
+Without Homebrew, download the app from [ollama.com/download](https://ollama.com/download).
+
+**3. Start the server**
+
+```bash
+brew services start ollama          # Homebrew install
+open -a Ollama                      # the app instead
+```
+
+The formula and the app are the same server on `localhost:11434` — use either, but not both at
+once. `curl http://localhost:11434/api/version` confirms it is up.
+
+**4. Pull and derive the coding model** — for the `agentfix` and `agentlang` lessons.
+
+Mellum2 Instruct, the default tier:
+
+```bash
+ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Instruct-GGUF-Q4_K_M
+ollama create agentfix-mellum2 -f Modelfile
+```
+
+Or Qwen, the fallback for machines that cannot hold an 8 GB model:
+
+```bash
+ollama pull qwen2.5-coder:1.5b
+printf 'FROM qwen2.5-coder:1.5b\nPARAMETER num_ctx 16384\n' > Modelfile.agentfix-qwen
+ollama create agentfix-qwen -f Modelfile.agentfix-qwen
+```
+
+Do not stop after the `pull`. The `create` is what carries the 16,384-token context window.
+
+**5. Pull and derive the thinking model** — for the `agentgraph` lesson.
+
+Mellum2 Thinking, the default tier. Same weights as the Instruct model above, trained to reason
+before it answers, and a separate 8 GB download:
+
+```bash
+ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M
+printf 'FROM hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M\nPARAMETER num_ctx 16384\n' \
+  > Modelfile.agentgraph-thinking
+ollama create agentgraph-mellum2-thinking -f Modelfile.agentgraph-thinking
+```
+
+Or, on the small tier, `qwen3:1.7b` — **not** the `qwen2.5-coder` from step 4, which has no
+thinking mode at all:
+
+```bash
+ollama pull qwen3:1.7b
+printf 'FROM qwen3:1.7b\nPARAMETER num_ctx 16384\n' > Modelfile.agentgraph-qwen3
+ollama create agentgraph-qwen3 -f Modelfile.agentgraph-qwen3
+```
+
+**6. Only on the Qwen tier — say which models to use**
+
+```bash
+printf 'MELLUM_MODEL=agentfix-qwen\nAGENTGRAPH_MODEL=agentgraph-qwen3\n' > .agentfix.env
+export MELLUM_MODEL=agentfix-qwen AGENTGRAPH_MODEL=agentgraph-qwen3   # this terminal only
+```
+
+`.agentfix.env` in the course root is what `run.py` reads, which is why setup writes it: an
+`export` line is gone the moment you close the terminal. Two variables, because the two models are
+different kinds — `MELLUM_MODEL` for the coding lessons, `AGENTGRAPH_MODEL` for the thinking one.
+The default Mellum2 tier needs neither: both derived names above already are those lessons'
+defaults.
+
+**7. Check it**
+
+```bash
+python run.py doctor                # the coding model
+python run.py agentgraph doctor     # the thinking model
+```
+
+On a 16 GB machine, `ollama stop agentfix-mellum2` between those two. Ollama keeps the last model
+loaded for five minutes, and two 8 GB models at once is what makes a correctly set-up laptop start
+swapping. Permanently: `launchctl setenv OLLAMA_MAX_LOADED_MODELS 1`, then restart Ollama.
+</details>
+
+<details>
+<summary><b>Linux, WSL2 and ChromeOS</b></summary>
+
+**1. Python 3.12 or newer**
+
+Ask your package manager for the exact series first, and fall back to its default `python3` —
+which distro needs which genuinely differs:
+
+```bash
+sudo apt-get update && sudo apt-get install -y python3.12    # Ubuntu 24.04
+sudo apt-get install -y python3                              # Debian 13: already newer than 3.12
+sudo dnf install -y python3.12                               # Fedora: python3 is also fine
+sudo pacman -S --needed --noconfirm python                   # Arch is rolling; no 3.12 package
+```
+
+Ubuntu 22.04 and Debian 12 have no `python3.12` package **and** a `python3` that is too old. There,
+use uv, which fetches a real CPython:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv python install 3.12
+uv python find 3.12                 # the path setup.py would re-execute itself with
+```
+
+That is uv as an interpreter installer and nothing more. To turn that interpreter into an
+environment with pip in it:
 
 ```bash
 uv venv --python 3.12 --seed .venv
@@ -260,56 +328,223 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**The models, on every platform.** Two per tier: one that codes, one that thinks.
+**2. Install Ollama**
 
-Mellum2 — the default tier. `Modelfile` is in the repo; the Thinking one is generated, and every
-generated `Modelfile.*` goes in the **course root**, because native Windows has no `/tmp` and
-`ollama create` reads the file from the directory it runs in:
+```bash
+sudo apt-get install -y curl zstd   # the install script needs both; a fresh Debian has neither
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+**3. Start the server**
+
+```bash
+sudo systemctl start ollama         # the install script registers this service
+ollama serve &                      # no systemd — common inside WSL2
+```
+
+`systemctl status ollama` usually shows it already listening. A GPU is not required; CPU inference
+works, it is just slower.
+
+**4. Pull and derive the coding model** — for the `agentfix` and `agentlang` lessons.
+
+Mellum2 Instruct, the default tier:
 
 ```bash
 ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Instruct-GGUF-Q4_K_M
 ollama create agentfix-mellum2 -f Modelfile
+```
 
+Or Qwen, the fallback:
+
+```bash
+ollama pull qwen2.5-coder:1.5b
+printf 'FROM qwen2.5-coder:1.5b\nPARAMETER num_ctx 16384\n' > Modelfile.agentfix-qwen
+ollama create agentfix-qwen -f Modelfile.agentfix-qwen
+```
+
+Do not stop after the `pull`. The `create` is what carries the 16,384-token context window.
+
+**5. Pull and derive the thinking model** — for the `agentgraph` lesson.
+
+Mellum2 Thinking, the default tier. Same weights as the Instruct model above, trained to reason
+before it answers, and a separate 8 GB download:
+
+```bash
 ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M
 printf 'FROM hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M\nPARAMETER num_ctx 16384\n' \
   > Modelfile.agentgraph-thinking
 ollama create agentgraph-mellum2-thinking -f Modelfile.agentgraph-thinking
 ```
 
-Qwen — the fallback, and it takes two *different* models. `qwen2.5-coder:1.5b` has no thinking
-mode at all, so the thinking lesson gets `qwen3:1.7b`, the smallest thing that both reasons and
-calls tools:
+Or, on the small tier, `qwen3:1.7b` — **not** the `qwen2.5-coder` from step 4, which has no
+thinking mode at all:
 
 ```bash
-ollama pull qwen2.5-coder:1.5b
-printf 'FROM qwen2.5-coder:1.5b\nPARAMETER num_ctx 16384\n' > Modelfile.agentfix-qwen
-ollama create agentfix-qwen -f Modelfile.agentfix-qwen
-export MELLUM_MODEL=agentfix-qwen
-
 ollama pull qwen3:1.7b
 printf 'FROM qwen3:1.7b\nPARAMETER num_ctx 16384\n' > Modelfile.agentgraph-qwen3
 ollama create agentgraph-qwen3 -f Modelfile.agentgraph-qwen3
-export AGENTGRAPH_MODEL=agentgraph-qwen3
 ```
+
+**6. Only on the Qwen tier — say which models to use**
+
+```bash
+printf 'MELLUM_MODEL=agentfix-qwen\nAGENTGRAPH_MODEL=agentgraph-qwen3\n' > .agentfix.env
+export MELLUM_MODEL=agentfix-qwen AGENTGRAPH_MODEL=agentgraph-qwen3   # this terminal only
+```
+
+`.agentfix.env` in the course root is what `run.py` reads, which is why setup writes it: an
+`export` line is gone the moment you close the terminal. Two variables, because the two models are
+different kinds — `MELLUM_MODEL` for the coding lessons, `AGENTGRAPH_MODEL` for the thinking one.
+The default Mellum2 tier needs neither.
+
+**7. Check it**
+
+```bash
+python run.py doctor                # the coding model
+python run.py agentgraph doctor     # the thinking model
+```
+
+On a 16 GB machine, `ollama stop agentfix-mellum2` between those two. Ollama keeps the last model
+loaded for five minutes, and two 8 GB models at once is what makes a correctly set-up laptop start
+swapping. Permanently, in the server's own environment: `OLLAMA_MAX_LOADED_MODELS=1`, via
+`sudo systemctl edit ollama`.
+
+**WSL2 only — give it enough RAM**
+
+WSL2 gets a fraction of your total RAM by default (50%, capped at 8 GB on older builds), and that
+fraction — not your machine's spec sheet — is what has to hold an 8 GB model. It is also the number
+`setup.py` picks the tier from. If `free -g` shows less than 16 GB, raise it from PowerShell in
+`%UserProfile%\.wslconfig`:
+
+```ini
+[wsl2]
+memory=16GB
+```
+
+Then `wsl --shutdown`, reopen the Ubuntu shell, and run `./setup.sh` again.
+</details>
+
+<details>
+<summary><b>Windows — WSL2 (recommended)</b></summary>
+
+WSL2 is the recommended Windows path: everything below the first command is plain Linux, and the
+sandbox that runs the agent's tests works properly there.
+
+**1. Install Ubuntu**, once, in PowerShell:
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+**2. Do everything else inside the Ubuntu shell** — Ollama, both models, the exercises — following
+the **Linux, WSL2 and ChromeOS** block above, including its RAM note at the end.
+
+Keep the course on the Linux filesystem (`~/agentfix-workshop`, not `/mnt/c/...`). Test discovery
+across the `/mnt/c` bridge is slow enough to be annoying.
+</details>
+
+<details>
+<summary><b>Windows — native PowerShell</b></summary>
+
+Works for setup and the exercises. The sandbox that runs the agent's tests is untested here — use
+WSL2 if that matters to you.
+
+**1. Python 3.12 or newer**
+
+```powershell
+winget install -e --id Python.Python.3.12
+```
+
+**2. Install Ollama**
+
+```powershell
+winget install -e --id Ollama.Ollama
+```
+
+**3. Start the server**
+
+```powershell
+ollama serve
+```
+
+Or start the Ollama tray app, which is the same server. If PowerShell says `ollama` is not
+recognized straight after installing, open a **new** terminal — the installer's `PATH` change only
+reaches processes started afterwards.
+
+**4. Pull and derive the coding model** — for the `agentfix` and `agentlang` lessons.
+
+Mellum2 Instruct, the default tier:
+
+```powershell
+ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Instruct-GGUF-Q4_K_M
+ollama create agentfix-mellum2 -f Modelfile
+```
+
+Or Qwen, the fallback. Every generated Modelfile goes in the course root, because native Windows
+has no `/tmp`:
 
 ```powershell
 ollama pull qwen2.5-coder:1.5b
 Set-Content Modelfile.agentfix-qwen @('FROM qwen2.5-coder:1.5b', 'PARAMETER num_ctx 16384')
 ollama create agentfix-qwen -f Modelfile.agentfix-qwen
-$env:MELLUM_MODEL = 'agentfix-qwen'
+```
 
+Do not stop after the `pull`. The `create` is what carries the 16,384-token context window.
+
+**5. Pull and derive the thinking model** — for the `agentgraph` lesson.
+
+Mellum2 Thinking, the default tier. Same weights as the Instruct model above, trained to reason
+before it answers, and a separate 8 GB download:
+
+```powershell
+ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M
+Set-Content Modelfile.agentgraph-thinking @(
+  'FROM hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M', 'PARAMETER num_ctx 16384')
+ollama create agentgraph-mellum2-thinking -f Modelfile.agentgraph-thinking
+```
+
+Or, on the small tier, `qwen3:1.7b` — **not** the `qwen2.5-coder` from step 4, which has no
+thinking mode at all:
+
+```powershell
 ollama pull qwen3:1.7b
 Set-Content Modelfile.agentgraph-qwen3 @('FROM qwen3:1.7b', 'PARAMETER num_ctx 16384')
 ollama create agentgraph-qwen3 -f Modelfile.agentgraph-qwen3
-$env:AGENTGRAPH_MODEL = 'agentgraph-qwen3'
 ```
 
-Those two `export` lines last for that one terminal session — `unset MELLUM_MODEL` in a POSIX
-shell, `Remove-Item Env:\MELLUM_MODEL` in PowerShell, `set MELLUM_MODEL=` in `cmd.exe` — which
-is exactly the thing `setup.py` writes `.agentfix.env` to avoid. Qwen is smaller and faster, but
-noticeably less reliable at multi-step tool use than Mellum2: expect more steps, or a task it
-cannot fix. Good enough to see the loop work; not the demo model.
+**6. Only on the Qwen tier — say which models to use**
+
+```powershell
+Set-Content .agentfix.env @('MELLUM_MODEL=agentfix-qwen', 'AGENTGRAPH_MODEL=agentgraph-qwen3')
+
+$env:MELLUM_MODEL = 'agentfix-qwen'                        # this terminal only
+$env:AGENTGRAPH_MODEL = 'agentgraph-qwen3'
+setx MELLUM_MODEL agentfix-qwen                            # future terminals, user-wide
+setx AGENTGRAPH_MODEL agentgraph-qwen3
+```
+
+`.agentfix.env` in the course root is what `run.py` reads, which is why setup writes it. Two
+variables, because the two models are different kinds — `MELLUM_MODEL` for the coding lessons,
+`AGENTGRAPH_MODEL` for the thinking one. `$env:` lasts for that one session
+(`Remove-Item Env:\MELLUM_MODEL` clears it; in `cmd.exe` the equivalents are
+`set MELLUM_MODEL=agentfix-qwen` and `set MELLUM_MODEL=`). `setx` persists, but **only for
+processes started afterwards** — close and reopen PyCharm and your terminals, or they will keep the
+environment they were launched with. The default Mellum2 tier needs none of this.
+
+**7. Check it**
+
+```powershell
+python run.py doctor                # the coding model
+python run.py agentgraph doctor     # the thinking model
+```
+
+On a 16 GB machine, `ollama stop agentfix-mellum2` between those two: Ollama keeps the last model
+loaded for five minutes, and two 8 GB models at once is what makes a correctly set-up laptop start
+swapping.
 </details>
+
+Qwen is smaller and faster than Mellum2, but noticeably less reliable at multi-step tool use:
+expect more steps, or a task it cannot fix. Good enough to see the loop work; not the demo model.
 
 ### The Colab tier
 

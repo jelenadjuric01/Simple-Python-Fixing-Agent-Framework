@@ -1,6 +1,5 @@
 # Check your setup
 
-## One command
 
 Every command in this course runs the same way: **open the terminal, stay where it opens — the
 course root — and use `run.py`.**
@@ -10,6 +9,16 @@ python run.py doctor
 ```
 
 You never need to change directory, and you never need to leave the Course View.
+
+
+> **On the `colab` tier, skip this command.** It will fail, and that is fine. `doctor` looks for
+> Ollama, a derived model, and a server answering on `localhost:11434` — on this tier none of
+> those live on your laptop, they live in the Colab runtime. Nothing is broken and there is
+> nothing to fix. Read the rest of this lesson so you know what `doctor` reports, then continue;
+> `notebooks/agentfix.ipynb` runs the check for you in Colab when you get to **Now point it at a
+> real model**. Everything else in the course — every lesson, every exercise, every exercise test
+> — you do on your own machine exactly as written, because the exercise tests use a scripted fake
+> model and need no model at all.
 
 If that says it cannot find the agent's code, open the next lesson — **Agent with no framework** — and
 click its first step once, then come back. The guided project's working directory is created the
