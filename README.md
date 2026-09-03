@@ -26,6 +26,10 @@ reward, not a prerequisite.
 This README is the single reference for the workshop. The wording of each lesson section stays
 close to the lesson text in the IDE so it is easy to recognise where you are.
 
+When something is broken rather than unclear, go to **[TROUBLESHOOT.md](TROUBLESHOOT.md)** first —
+it is every environment failure that has actually happened to someone taking this course, with the
+command that fixed it.
+
 ### Course map
 
 | Lesson | Steps | You write |
@@ -34,6 +38,7 @@ close to the lesson text in the IDE so it is easy to recognise where you are.
 | **Agent with no framework** | Intro and Structure, Real Model | — (read it, run it) |
 | **What about frameworks?** | Intro and Structure, Stage 1, Stage 2, Run for Real | the graph's routing, and the loop guard |
 | **What about thinking?** | Stage 1, Run for Real | what counts as acting, the idle counter, the nudge choice, the routing tail |
+| **Where to go from here** | Next Steps, Cleaning | — (read it, then take your laptop back) |
 
 ### One command shape, three agents
 
@@ -78,15 +83,36 @@ you. `setup.py` does not touch your interpreter's packages; it only sets up the 
 
 ### Which tier are you?
 
-| Tier | Best for | RAM on learner machine | Model environment | Status |
-|---|---|---:|---|---|
-| `mellum2` (default) | laptops that can comfortably run Mellum2 | 16 GB+ | local Ollama, `http://localhost:11434` | reference path |
-| `qwen` | laptops that cannot hold the 8 GB Mellum2 model | 8–16 GB | `qwen2.5-coder:1.5b` locally through Ollama | local fallback |
-| `colab` | Chromebooks, thin laptops, anyone who prefers a browser | under 8 GB, or any | Google Colab notebook — `notebooks/agentfix.ipynb` | **tested** |
+| Tier | Best for | RAM | Disk | Models | Status |
+|---|---|---:|---:|---|---|
+| `mellum2` (default) | laptops that can comfortably run Mellum2 | 16 GB+ | ~18 GB | `agentfix-mellum2` (Instruct, 8 GB) + `agentgraph-mellum2-thinking` (Thinking, 8 GB) | reference path |
+| `qwen` | laptops that cannot hold an 8 GB model | 8–16 GB | ~4 GB | `agentfix-qwen` (`qwen2.5-coder:1.5b`) + `agentgraph-qwen3` (`qwen3:1.7b`) | local fallback |
+| `colab` | Chromebooks, thin laptops, anyone who prefers a browser | under 8 GB, or any | — | Google Colab notebook — `notebooks/agentfix.ipynb` | **tested** |
+
+**Two models per tier, and the RAM number is still about one of them.** The course has two kinds
+of agent in it: the first two editions run a *coding* model, and the third runs a *thinking* one.
+So every tier installs a pair, and setup pulls both in the same run — nobody should meet an 8 GB
+download in the middle of the lesson that needs it.
+
+What that pair costs is **disk** (about 18 GB on the default tier), not RAM. The lessons run one
+after the other, so only one model is ever needed at a time, and 16 GB is the line for holding
+*one* 8 GB model plus the OS. The exception is worth knowing: Ollama keeps the last model loaded
+for five minutes after the final request, so moving straight from lesson 3 to lesson 4 can leave
+both resident at once. One command fixes it —
+
+```bash
+ollama stop agentfix-mellum2        # before you start the thinking lesson
+```
+
+— or cap it permanently in the **server's** environment with `OLLAMA_MAX_LOADED_MODELS=1`
+(`setup.py` does that for a server it starts itself; the macOS menu-bar app needs
+`launchctl setenv OLLAMA_MAX_LOADED_MODELS 1` and a restart).
 
 `./setup.sh` reads this machine's RAM and chooses: `mellum2` at 16 GB or more, `qwen` from
 8 GB up, and below 8 GB it says so and sends you to Colab rather than installing a model that
-cannot fit. That floor is not theoretical — a 3.4 GB Chromebook is a real machine a learner
+cannot fit. It also prints how much free disk the tier's two pulls need against how much you
+have, and says so before starting, because Ollama fails part-way through a pull rather than up
+front. That RAM floor is not theoretical — a 3.4 GB Chromebook is a real machine a learner
 brought to this workshop, and the IDE plus an Ollama server plus a 16,384-token context does not
 fit in it. Override any of it whenever you want:
 
@@ -115,12 +141,24 @@ and is the same code on every platform.
    job, in a virtual environment, installed by the IDE.
 2. Installs Ollama, if `ollama` is not already on your PATH.
 3. Starts the Ollama server and waits until it answers on `localhost:11434`.
-4. Pulls the tier's base model.
-5. Derives `agentfix-mellum2` (or `agentfix-qwen`) from it with `PARAMETER num_ctx 16384`.
-6. Records the model choice: `.agentfix.env`, which `run.py` reads, plus `MELLUM_MODEL` in your
-   user environment for terminals you open later — `setx` on Windows, a marked block in your
-   shell profile on macOS and Linux. `--no-shell-env` skips that half, and the mellum2 tier
-   removes both, because `agentfix-mellum2` is already the default.
+4. Pulls the tier's **two** base models: the Instruct checkpoint the first two lessons run on,
+   then the Thinking checkpoint the third one is about.
+5. Derives one model per checkpoint with `PARAMETER num_ctx 16384` — `agentfix-mellum2` and
+   `agentgraph-mellum2-thinking` (or `agentfix-qwen` and `agentgraph-qwen3`). Only `Modelfile`
+   is committed to the repo; the other three are written into the course root as
+   `Modelfile.agentgraph-thinking`, `Modelfile.agentfix-qwen`, `Modelfile.agentgraph-qwen3`,
+   because `ollama create` reads them from the directory it runs in.
+6. Records the model choice: `.agentfix.env`, which `run.py` reads, plus the same variables in
+   your user environment for terminals you open later — `setx` on Windows, one marked block in
+   your shell profile on macOS and Linux. `--no-shell-env` skips that half.
+
+   Two variables, because the two models are different kinds: **`MELLUM_MODEL`** for the
+   `agentfix` and `agentlang` lessons, **`AGENTGRAPH_MODEL`** for the thinking one. One variable
+   could not do both jobs — on the small tier `MELLUM_MODEL=agentfix-qwen` names a model with no
+   thinking mode, and pointing lesson 4 at it produces a working agent with no reasoning in it
+   and no error anywhere. The mellum2 tier needs neither variable (both derived names already
+   are those editions' defaults) and setup *removes* them, in case an earlier `--tier qwen` run
+   left them behind.
 
 You can run `python3 setup.py` directly if you already have 3.12 and only want the model half;
 the shell scripts exist for the interpreter.
@@ -222,21 +260,36 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**The models, on every platform.** Mellum2:
+**The models, on every platform.** Two per tier: one that codes, one that thinks.
+
+Mellum2 — the default tier. `Modelfile` is in the repo; the Thinking one is generated, and every
+generated `Modelfile.*` goes in the **course root**, because native Windows has no `/tmp` and
+`ollama create` reads the file from the directory it runs in:
 
 ```bash
 ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Instruct-GGUF-Q4_K_M
 ollama create agentfix-mellum2 -f Modelfile
+
+ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M
+printf 'FROM hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M\nPARAMETER num_ctx 16384\n' \
+  > Modelfile.agentgraph-thinking
+ollama create agentgraph-mellum2-thinking -f Modelfile.agentgraph-thinking
 ```
 
-Qwen — the fallback. `Modelfile.agentfix-qwen` goes in the course root, because native Windows
-has no `/tmp`:
+Qwen — the fallback, and it takes two *different* models. `qwen2.5-coder:1.5b` has no thinking
+mode at all, so the thinking lesson gets `qwen3:1.7b`, the smallest thing that both reasons and
+calls tools:
 
 ```bash
 ollama pull qwen2.5-coder:1.5b
 printf 'FROM qwen2.5-coder:1.5b\nPARAMETER num_ctx 16384\n' > Modelfile.agentfix-qwen
 ollama create agentfix-qwen -f Modelfile.agentfix-qwen
 export MELLUM_MODEL=agentfix-qwen
+
+ollama pull qwen3:1.7b
+printf 'FROM qwen3:1.7b\nPARAMETER num_ctx 16384\n' > Modelfile.agentgraph-qwen3
+ollama create agentgraph-qwen3 -f Modelfile.agentgraph-qwen3
+export AGENTGRAPH_MODEL=agentgraph-qwen3
 ```
 
 ```powershell
@@ -244,9 +297,14 @@ ollama pull qwen2.5-coder:1.5b
 Set-Content Modelfile.agentfix-qwen @('FROM qwen2.5-coder:1.5b', 'PARAMETER num_ctx 16384')
 ollama create agentfix-qwen -f Modelfile.agentfix-qwen
 $env:MELLUM_MODEL = 'agentfix-qwen'
+
+ollama pull qwen3:1.7b
+Set-Content Modelfile.agentgraph-qwen3 @('FROM qwen3:1.7b', 'PARAMETER num_ctx 16384')
+ollama create agentgraph-qwen3 -f Modelfile.agentgraph-qwen3
+$env:AGENTGRAPH_MODEL = 'agentgraph-qwen3'
 ```
 
-The `MELLUM_MODEL` line lasts for that one terminal session — `unset MELLUM_MODEL` in a POSIX
+Those two `export` lines last for that one terminal session — `unset MELLUM_MODEL` in a POSIX
 shell, `Remove-Item Env:\MELLUM_MODEL` in PowerShell, `set MELLUM_MODEL=` in `cmd.exe` — which
 is exactly the thing `setup.py` writes `.agentfix.env` to avoid. Qwen is smaller and faster, but
 noticeably less reliable at multi-step tool use than Mellum2: expect more steps, or a task it
@@ -255,15 +313,21 @@ cannot fix. Good enough to see the loop work; not the demo model.
 
 ### The Colab tier
 
-Use `notebooks/agentfix.ipynb` for the browser-based Google Colab path. The model, Ollama process,
-repository, edits and test commands all run inside the Colab runtime rather than on the learner's
-laptop.
+`notebooks/agentfix.ipynb` is the browser path, and it does **one thing**: it runs the three
+finished agents against a real model. Ollama, both models and all three repositories live in the
+Colab runtime rather than on the learner's laptop.
 
-Colab is not a drop-in replacement for the IDE setup. The exercises are the same files and the same
-decisions, but the workflow is not: learners edit the repository files from the notebook
-environment and run the exercise tests from notebook cells, so the IDE-specific checks,
-file-navigation instructions and terminal steps in each lesson need their notebook equivalents.
-Keep the lessons and their stages in the same order; only the environment changes.
+It is not a course substitute, and it does not try to be. The lessons — reading the code, writing
+the routing, the loop guard and the thinking guards — still happen in the IDE on the learner's own
+machine, where the exercise tests grade them against a scripted fake model and need no model at
+all. The notebook covers only the step that genuinely requires a real model: `doctor`, `solve` and
+`eval` for each of the three editions, in order, with the small `qwen` pair standing in for the
+Mellum2 pair.
+
+So on this tier: do every lesson in the IDE, skip `python run.py doctor` locally (there is no model
+there to check), and run the notebook top to bottom when a lesson says "run it for real". The
+notebook checks out the reference solution of each exercise file so the agents are guaranteed to
+run — nothing there can overwrite the work on your machine.
 
 ## Check your setup
 
@@ -284,7 +348,8 @@ python run.py agentlang doctor        # What about frameworks?
 python run.py agentgraph doctor       # What about thinking?
 ```
 
-The first two share the model `setup` installs, so both should report READY straight away.
+The first two share one of the models `setup` installs and the third uses the other, so all
+three should report READY straight away after `./setup.sh`.
 
 **`agentgraph` is worth checking now rather than three lessons from now.** That lesson runs the
 *Thinking* checkpoint, and its `doctor` adds two checks the others do not have: that the model
@@ -292,7 +357,9 @@ The first two share the model `setup` installs, so both should report READY stra
 model with no thinking mode does not error, it just quietly behaves like the Instruct model from
 lesson 2, and every reasoning-shaped thing in the trace disappears.
 
-If `agentgraph doctor` reports a missing model, install it and run it again:
+`./setup.sh` pulls and derives this model along with the coding one, so a missing model here
+usually means setup was interrupted, or the machine was set up before the Thinking model was part
+of it. Re-running `./setup.sh` is the short answer; by hand it is:
 
 ```bash
 ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M
@@ -300,10 +367,12 @@ ollama create agentgraph-mellum2-thinking -f Modelfile
 ```
 
 Run that from the **What about thinking?** lesson's directory so it picks up that lesson's own
-`Modelfile` — the one carrying `PARAMETER num_ctx 16384` for the Thinking model. On the small tier
-the equivalent is `qwen3:1.7b`: the smallest thing that both thinks and calls tools. The
-`qwen2.5-coder:1.5b` fallback used by the other lessons has no thinking mode at all, so it cannot
-stand in here.
+`Modelfile` — the one carrying `PARAMETER num_ctx 16384` for the Thinking model. (From the course
+root, use the `Modelfile.agentgraph-thinking` setup writes there instead.) On the small tier the
+equivalent is `agentgraph-qwen3`, derived from `qwen3:1.7b`: the smallest thing that both thinks
+and calls tools. The `qwen2.5-coder:1.5b` fallback used by the other lessons has no thinking mode
+at all, so it cannot stand in here — which is why the tier records it in its own variable,
+`AGENTGRAPH_MODEL`, rather than reusing `MELLUM_MODEL`.
 
 ### What `doctor` reports
 
@@ -314,8 +383,9 @@ final `READY <rate> tok/s`, or a remedy command for each failure.
 
 Two lines decide your tier:
 
-- **`ram`** — whether you can run an 8 GB model comfortably. This is the line `setup.py` uses to
-  choose between the `mellum2` tier and the smaller fallback.
+- **`ram`** — whether you can run **one** 8 GB model comfortably. This is the line `setup.py`
+  uses to choose between the `mellum2` tier and the smaller fallback; the tier's second model is
+  a disk cost, not a second 8 GB of memory, because the lessons never run at the same time.
 - **`context window`** — whether the `ollama create` step actually took effect. If it reads
   `4096` instead of `16384`, that step was skipped, and the agent will lose its own system prompt
   on long runs: Ollama's default context drops the *earliest* messages first, and the earliest
@@ -461,8 +531,8 @@ All three workshop tasks at once:
 python run.py eval --suite workshop --limit 3
 ```
 
-On the Colab tier, run the equivalent commands from notebook cells. The commands and the expected
-agent behaviour are the same; the notebook replaces the IDE terminal.
+On the Colab tier these are the notebook's `solve` and `eval` cells — same commands, same expected
+behaviour, run against the small `qwen` pair in the browser.
 
 ## Sandbox safety
 

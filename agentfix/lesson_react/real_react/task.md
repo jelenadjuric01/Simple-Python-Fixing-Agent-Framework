@@ -9,10 +9,16 @@ Same three commands as the last lesson, one word different — `agentgraph` inst
 Run `doctor` again if you skipped it in the previous step — its reasoning and tool-calling checks
 are the ones that matter now that a real model is answering.
 
-This is a different checkpoint from the last lesson, so it is a different pull:
+This is a different checkpoint from the last lesson — the Thinking one — and `./setup.sh`
+installed it in the same run as the coding model, so there is normally nothing to pull here. If
+`doctor` says the model is missing, that pull is:
 
     ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M
     ollama create agentgraph-mellum2-thinking -f Modelfile
+
+One more thing, if this laptop has 16 GB: Ollama keeps the *previous* lesson's model loaded for
+five minutes, and two 8 GB models at once is what makes a correctly set-up machine start
+swapping. `ollama stop agentfix-mellum2` before the first command above, and it never comes up.
 
 ## What is different in the trace
 

@@ -40,9 +40,12 @@ per check and a final `READY <rate> tok/s`, or a remedy command for each failure
 
 Two lines decide your tier: `ram` and `context window`.
 
-- **`ram`** tells you, in plain numbers, whether you can run an 8 GB model comfortably. This is
-  the line `setup.py` uses to decide whether you get the `mellum2` tier or fall back
-  to `qwen`.
+- **`ram`** tells you, in plain numbers, whether you can run **one** 8 GB model comfortably.
+  This is the line `setup.py` uses to decide whether you get the `mellum2` tier or fall back
+  to `qwen`. Your tier installs two models — a coding one and a thinking one — but the lessons
+  use them one at a time, so the second is a disk cost, not a second 8 GB of memory. The one
+  case where it *is*: Ollama keeps the previous lesson's model loaded for five minutes, so
+  `ollama stop agentfix-mellum2` before you start the thinking lesson on a 16 GB machine.
 - **`context window`** tells you whether the `ollama create` step actually took effect. If it
   reads `context window: 4096` instead of `16384`, the `ollama create` step was skipped — and
   the agent will lose its own system prompt on long runs, because Ollama's default context
@@ -50,3 +53,11 @@ Two lines decide your tier: `ram` and `context window`.
   earliest message is the one telling the agent it is not finished until the tests pass.
 
 If either of those lines looks wrong, go back to the previous step before continuing.
+
+## When something is broken rather than unclear
+
+`TROUBLESHOOT.md` in the course root is every environment failure that has actually happened to
+someone taking this course, with the command that fixed it — red imports in the IDE, a Windows
+variable the IDE cannot see yet, `context window: 4096`, a machine that started swapping in
+lesson 4, a lesson 4 trace with no reasoning in it. Check there before assuming your own code is
+at fault.

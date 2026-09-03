@@ -15,12 +15,14 @@ additional_files:
   - name: requirements.txt
   - name: Modelfile
     visible: true
-  - name: run.py
   - name: README.md
+    visible: true
+  - name: TROUBLESHOOT.md
     visible: true
   - name: notebooks/agentfix.ipynb
     visible: true
-  - name: setup.sh
+  - name: run.py
   - name: setup.ps1
   - name: setup.py
+  - name: setup.sh
 yaml_version: 6
