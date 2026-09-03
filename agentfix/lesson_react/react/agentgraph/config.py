@@ -54,7 +54,18 @@ DEFAULT_MODEL = "agentgraph-mellum2-thinking"
 # thinking mode turns this agent back into the Act-only one from the last workshop, and every
 # reasoning-shaped thing in the trace silently disappears. Qwen3 is the smallest thing that
 # both thinks and calls tools.
+#
+# This is the base; `setup.py --tier qwen` pulls it and derives `agentgraph-qwen3` from it with
+# the context window baked in, then records that name in AGENTGRAPH_MODEL.
 FALLBACK_MODEL = "qwen3:1.7b"
+FALLBACK_DERIVED_MODEL = "agentgraph-qwen3"
+
+# The variable that carries the model choice for THIS edition. Deliberately not MELLUM_MODEL,
+# which the first two lessons use: those run a coding model, this one needs a thinking one, and
+# on the small tier they are not the same model. Pointing this agent at `agentfix-qwen` would
+# produce a working agent with no reasoning in it and no error anywhere — so the two kinds of
+# model get two variables, and `setup.py` writes both.
+MODEL_ENV_KEY = "AGENTGRAPH_MODEL"
 
 # `agentgraph doctor` fails if the loaded model reports less than this. A too-small context
 # does not error — it silently truncates the middle of the agent's history, which looks like
@@ -106,9 +117,18 @@ class LLMConfig:
 
     @classmethod
     def from_env(cls) -> LLMConfig:
-        """Defaults, overridden by MELLUM_BASE_URL and MELLUM_MODEL if they are set."""
+        """Defaults, overridden by MELLUM_BASE_URL and AGENTGRAPH_MODEL if they are set.
+
+        MELLUM_MODEL is still honoured, but only when AGENTGRAPH_MODEL is unset: it is the
+        first two lessons' variable, and on the small tier it names a model that cannot think.
+        Ordering it second means `setup.py`'s choice wins, while a deliberate
+        `MELLUM_MODEL=my-own-build` in a shell still reaches this agent.
+        """
         return replace(
             cls(),
             base_url=os.environ.get("MELLUM_BASE_URL", DEFAULT_BASE_URL),
-            model=os.environ.get("MELLUM_MODEL", DEFAULT_MODEL),
+            model=(
+                os.environ.get(MODEL_ENV_KEY)
+                or os.environ.get("MELLUM_MODEL", DEFAULT_MODEL)
+            ),
         )

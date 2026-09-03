@@ -14,6 +14,7 @@ import contextlib
 import importlib.util
 import io
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -166,12 +167,17 @@ class TestResolveTier(unittest.TestCase):
 class TestPlanSteps(unittest.TestCase):
     """The platform matrix: one plan per OS, asserted by the commands it would run."""
 
+    # Two models per tier — a coding one and a thinking one — so two pull/derive pairs, in the
+    # tier's own order. The instruct pair comes first because that is the lesson the course
+    # opens with: a run interrupted halfway still leaves a machine that can start lesson 2.
     STEP_NAMES = [
         "python",
         "ollama installed",
         "ollama server",
-        "base model",
-        "derived model",
+        "base model (instruct)",
+        "derived model (instruct)",
+        "base model (thinking)",
+        "derived model (thinking)",
         "model choice",
     ]
 
@@ -253,24 +259,75 @@ class TestPlanSteps(unittest.TestCase):
             "brew install ollama",
         )
 
-    def test_the_tier_decides_which_model_is_pulled_and_derived(self) -> None:
+    def test_the_tier_decides_which_models_are_pulled_and_derived(self) -> None:
         mellum = self.previews(platform_of("linux"), setup.MELLUM2)
         self.assertEqual(
-            mellum["base model"],
+            mellum["base model (instruct)"],
             "ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Instruct-GGUF-Q4_K_M",
         )
-        self.assertEqual(mellum["derived model"], "ollama create agentfix-mellum2 -f Modelfile")
-
-        qwen = self.previews(platform_of("linux"), setup.QWEN)
-        self.assertEqual(qwen["base model"], "ollama pull qwen2.5-coder:1.5b")
         self.assertEqual(
-            qwen["derived model"], "ollama create agentfix-qwen -f Modelfile.agentfix-qwen"
+            mellum["derived model (instruct)"], "ollama create agentfix-mellum2 -f Modelfile"
+        )
+        self.assertEqual(
+            mellum["base model (thinking)"],
+            "ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M",
+        )
+        self.assertEqual(
+            mellum["derived model (thinking)"],
+            "ollama create agentgraph-mellum2-thinking -f Modelfile.agentgraph-thinking",
         )
 
-    def test_the_generated_qwen_modelfile_carries_the_context_window(self) -> None:
+        qwen = self.previews(platform_of("linux"), setup.QWEN)
+        self.assertEqual(qwen["base model (instruct)"], "ollama pull qwen2.5-coder:1.5b")
+        self.assertEqual(
+            qwen["derived model (instruct)"],
+            "ollama create agentfix-qwen -f Modelfile.agentfix-qwen",
+        )
+        # The small tier cannot use one model twice: qwen2.5-coder does not think at all, and a
+        # non-thinking model turns the third lesson back into the second one.
+        self.assertEqual(qwen["base model (thinking)"], "ollama pull qwen3:1.7b")
+        self.assertEqual(
+            qwen["derived model (thinking)"],
+            "ollama create agentgraph-qwen3 -f Modelfile.agentgraph-qwen3",
+        )
+
+    def test_the_thinking_model_is_a_thinking_checkpoint_on_every_tier(self) -> None:
+        """The mistake this catches: a tier whose second model does not reason, which fails
+        silently — the agent runs, and is the previous lesson's Act-only agent."""
+        for tier in (setup.MELLUM2, setup.QWEN):
+            thinking = [m for m in tier.models if m.kind == "thinking"]
+            self.assertEqual(len(thinking), 1, tier.name)
+            self.assertNotIn("Instruct", thinking[0].base)
+            self.assertNotIn("qwen2.5-coder", thinking[0].base)
+            self.assertEqual(thinking[0].env_key, "AGENTGRAPH_MODEL")
+
+    def test_every_generated_modelfile_carries_the_context_window(self) -> None:
         """The whole point of deriving a model: /v1 drops per-request num_ctx."""
         self.assertIn("FROM qwen2.5-coder:1.5b", setup.QWEN_MODELFILE_TEXT)
         self.assertIn("PARAMETER num_ctx 16384", setup.QWEN_MODELFILE_TEXT)
+        for tier in (setup.MELLUM2, setup.QWEN):
+            for model in tier.models:
+                if not model.generate_modelfile:
+                    continue
+                text = setup.modelfile_text(model.base)
+                self.assertIn("FROM " + model.base, text)
+                self.assertIn("PARAMETER num_ctx 16384", text)
+
+    def test_the_only_committed_modelfile_is_the_repos_own(self) -> None:
+        generated = [
+            model.modelfile.name
+            for tier in (setup.MELLUM2, setup.QWEN)
+            for model in tier.models
+            if model.generate_modelfile
+        ]
+        self.assertNotIn("Modelfile", generated, "the committed Modelfile must not be rewritten")
+        self.assertTrue((ROOT / "Modelfile").is_file())
+
+    def test_a_tier_needs_disk_for_both_models_but_ram_for_one(self) -> None:
+        """The revision the second model forced: the sum is a disk number, not a RAM number."""
+        self.assertGreater(setup.MELLUM2.disk_bytes, 16 * 10 ** 9)
+        self.assertLess(setup.MELLUM2.largest_model_bytes, 10 * 10 ** 9)
+        self.assertEqual(setup.MELLUM2_MIN_RAM_BYTES, 16 * GIB)
 
 
 class TestModelChoice(unittest.TestCase):
@@ -284,15 +341,26 @@ class TestModelChoice(unittest.TestCase):
         setup.ENV_FILE = self.env_file
         self.addCleanup(lambda: setattr(setup, "ENV_FILE", self.original))
 
-    def test_qwen_writes_the_file_and_mellum2_removes_it(self) -> None:
-        setup.write_env_file("agentfix-qwen")
-        self.assertIn("MELLUM_MODEL=agentfix-qwen", self.env_file.read_text(encoding="utf-8"))
+    def test_qwen_writes_both_variables_and_mellum2_removes_the_file(self) -> None:
+        setup.write_env_file(setup.QWEN.env)
+        text = self.env_file.read_text(encoding="utf-8")
+        self.assertIn("MELLUM_MODEL=agentfix-qwen", text)
+        # The line that matters: without it the thinking lesson would run on the coding model.
+        self.assertIn("AGENTGRAPH_MODEL=agentgraph-qwen3", text)
 
-        setup.write_env_file(None)
+        setup.write_env_file(setup.MELLUM2.env)
         self.assertFalse(self.env_file.exists())
 
+    def test_mellum2_needs_no_overrides_at_all(self) -> None:
+        """Both derived names already are their editions' DEFAULT_MODEL."""
+        self.assertEqual(setup.MELLUM2.env, {})
+        self.assertEqual(
+            setup.QWEN.env,
+            {"MELLUM_MODEL": "agentfix-qwen", "AGENTGRAPH_MODEL": "agentgraph-qwen3"},
+        )
+
     def test_run_py_reads_the_file(self) -> None:
-        setup.write_env_file("agentfix-qwen")
+        setup.write_env_file({"MELLUM_MODEL": "agentfix-qwen"})
         original = runner.ENV_FILE
         runner.ENV_FILE = self.env_file
         try:
@@ -305,6 +373,19 @@ class TestModelChoice(unittest.TestCase):
             self.assertEqual(runner.env_from_file(), {})
         finally:
             os.environ.pop("MELLUM_MODEL", None)
+            runner.ENV_FILE = original
+
+    def test_run_py_reads_both_model_variables(self) -> None:
+        setup.write_env_file(setup.QWEN.env)
+        original = runner.ENV_FILE
+        runner.ENV_FILE = self.env_file
+        try:
+            for key in setup.ENV_KEYS:
+                os.environ.pop(key, None)
+            self.assertEqual(runner.env_from_file(), setup.QWEN.env)
+        finally:
+            for key in setup.ENV_KEYS:
+                os.environ.pop(key, None)
             runner.ENV_FILE = original
 
     def test_run_py_survives_a_file_it_cannot_decode(self) -> None:
@@ -332,25 +413,49 @@ class TestModelChoice(unittest.TestCase):
 
     def test_shell_block_is_replaced_not_repeated(self) -> None:
         profile = Path(self.temp.name) / ".zshrc"
-        first = setup._managed_block("agentfix-qwen", profile)
+        first = setup._managed_block(setup.QWEN.env, profile)
         text = "export EDITOR=vim\n" + first
         cleaned = setup._strip_managed_block(text)
         self.assertEqual(cleaned, "export EDITOR=vim\n")
         self.assertNotIn("MELLUM_MODEL", cleaned)
+        self.assertNotIn("AGENTGRAPH_MODEL", cleaned)
+
+    def test_one_block_carries_every_variable_the_tier_needs(self) -> None:
+        """One marked block, not one per variable, so removing it stays a single operation."""
+        block = setup._managed_block(setup.QWEN.env, Path(".zshrc"))
+        self.assertEqual(block.count(setup.SHELL_BLOCK_START), 1)
+        self.assertIn("export MELLUM_MODEL=agentfix-qwen", block)
+        self.assertIn("export AGENTGRAPH_MODEL=agentgraph-qwen3", block)
 
     def test_fish_gets_fish_syntax(self) -> None:
-        block = setup._managed_block("agentfix-qwen", Path("config.fish"))
+        block = setup._managed_block(setup.QWEN.env, Path("config.fish"))
         self.assertIn("set -gx MELLUM_MODEL agentfix-qwen", block)
+        self.assertIn("set -gx AGENTGRAPH_MODEL agentgraph-qwen3", block)
 
-    def test_windows_removes_rather_than_blanks_the_variable(self) -> None:
+    def test_windows_removes_rather_than_blanks_the_variables(self) -> None:
         """`setx VAR ""` leaves an empty variable behind, which reads as a model named "" ."""
         self.assertEqual(
-            list(setup._windows_env_commands("agentfix-qwen")),
-            ["setx", "MELLUM_MODEL", "agentfix-qwen"],
+            [list(c) for c in setup._windows_env_commands(setup.QWEN.env)],
+            [
+                ["setx", "MELLUM_MODEL", "agentfix-qwen"],
+                ["setx", "AGENTGRAPH_MODEL", "agentgraph-qwen3"],
+            ],
         )
-        self.assertIn("reg", setup._windows_env_commands(None))
+        # The mellum2 tier has to REMOVE a stale override from an earlier --tier qwen run, and
+        # both of them, not just the one it happens to remember.
+        removals = [list(c) for c in setup._windows_env_commands({}, setup.ENV_KEYS)]
+        self.assertTrue(all(c[0] == "reg" for c in removals), removals)
+        self.assertEqual([c[-1] for c in removals], list(setup.ENV_KEYS))
 
-    def _run_model_choice(self, tier, opts, shell="/bin/zsh", home=None):
+        # Nothing set and nothing wanted: no command at all. A prompt to delete something that
+        # was never there is a prompt that teaches learners to stop reading them.
+        self.assertEqual(setup._windows_env_commands({}), [])
+        self.assertEqual(
+            [list(c) for c in setup._windows_env_commands({}, ["AGENTGRAPH_MODEL"])],
+            [["reg", "delete", "HKCU\\Environment", "/F", "/V", "AGENTGRAPH_MODEL"]],
+        )
+
+    def _run_model_choice(self, tier, opts, shell="/bin/zsh", home=None, system="linux"):
         """Drive the step the way execute() does: probe, apply, probe again."""
         original = os.environ.get("SHELL")
         original_home = os.environ.get("HOME")
@@ -361,7 +466,7 @@ class TestModelChoice(unittest.TestCase):
         if home:
             os.environ["HOME"] = home
         try:
-            step = setup.model_choice_step(tier, platform_of("linux"), opts)
+            step = setup.model_choice_step(tier, platform_of(system), opts)
             with quiet():
                 before = step.probe()
                 applied = step.apply()
@@ -409,7 +514,7 @@ class TestModelChoice(unittest.TestCase):
         self.addCleanup(lambda: __import__("shutil").rmtree(home, ignore_errors=True))
         profile = Path(home) / ".zshrc"
         profile.write_text(
-            "export EDITOR=vim\n" + setup._managed_block("agentfix-qwen", profile),
+            "export EDITOR=vim\n" + setup._managed_block(setup.QWEN.env, profile),
             encoding="utf-8",
         )
         before, applied, after = self._run_model_choice(
@@ -419,16 +524,121 @@ class TestModelChoice(unittest.TestCase):
         self.assertTrue(after[0], after[1])
         self.assertEqual(profile.read_text(encoding="utf-8"), "export EDITOR=vim\n")
 
-    def test_export_line_matches_the_shell(self) -> None:
+    def test_declining_a_REMOVAL_is_a_failure(self) -> None:
+        """The other half of the decline, and the dangerous one.
+
+        Declining an addition is harmless: `.agentfix.env` still names the qwen models. Declining
+        a removal is not — the profile keeps exporting them while `.agentfix.env` names none, so
+        every terminal opened afterwards silently runs the previous tier's models. Reporting
+        that as "[ok] model choice" is the failure this step exists to prevent.
+        """
+        home = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(home, ignore_errors=True))
+        profile = Path(home) / ".zshrc"
+        profile.write_text(setup._managed_block(setup.QWEN.env, profile), encoding="utf-8")
+
+        original = setup.confirm
+        setup.confirm = lambda opts, question: "edit" not in question
+        try:
+            before, applied, after = self._run_model_choice(
+                setup.MELLUM2, setup.Options(), home=home
+            )
+        finally:
+            setup.confirm = original
+        self.assertFalse(before[0])
+        self.assertFalse(applied[0], "a declined removal must not report success")
+        self.assertIn(setup.SHELL_BLOCK_START, applied[1], applied[1])
+        self.assertIn("agentfix-qwen", profile.read_text(encoding="utf-8"))
+
+    def test_nothing_to_remove_asks_nothing(self) -> None:
+        """The common case for the default tier: no profile block, no prompt, no failure."""
+        home = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(home, ignore_errors=True))
+        (Path(home) / ".zshrc").write_text("export EDITOR=vim\n", encoding="utf-8")
+
+        asked = []
+        original = setup.confirm
+        setup.confirm = lambda opts, question: asked.append(question) or True
+        try:
+            _, applied, after = self._run_model_choice(
+                setup.MELLUM2, setup.Options(), home=home
+            )
+        finally:
+            setup.confirm = original
+        self.assertTrue(applied[0], applied[1])
+        self.assertTrue(after[0], after[1])
+        self.assertEqual(asked, [])
+
+    def test_windows_declining_the_variables_is_a_failure(self) -> None:
+        """Same rule on the Windows path, where the removal is a `reg delete` inside
+        run_command rather than a confirm() of our own."""
+        original = setup.run_command
+        setup.run_command = lambda command, opts, **kwargs: (False, setup.DECLINED)
+        try:
+            _, applied, _ = self._run_model_choice(
+                setup.QWEN, setup.Options(), system="windows"
+            )
+        finally:
+            setup.run_command = original
+        self.assertFalse(applied[0], "a declined setx must not report success")
+        self.assertIn("MELLUM_MODEL", applied[1])
+
+    def test_windows_removes_a_stale_variable_and_ignores_a_missing_one(self) -> None:
+        ran = []
+        original = setup.run_command
+        # `reg delete` of a variable that is not in HKCU exits non-zero; that is "nothing to
+        # remove", not a failure, and must not stop the run.
+        setup.run_command = lambda command, opts, **kwargs: (
+            ran.append(list(command)) or (False, "exited with status 1")
+        )
+        try:
+            os.environ["AGENTGRAPH_MODEL"] = "agentgraph-qwen3"
+            _, applied, after = self._run_model_choice(
+                setup.MELLUM2, setup.Options(yes=True), system="windows"
+            )
+        finally:
+            os.environ.pop("AGENTGRAPH_MODEL", None)
+            setup.run_command = original
         self.assertEqual(
-            setup.export_line(setup.QWEN, platform_of("linux")),
-            "export MELLUM_MODEL=agentfix-qwen",
+            ran, [["reg", "delete", "HKCU\\Environment", "/F", "/V", "AGENTGRAPH_MODEL"]]
+        )
+        self.assertTrue(applied[0], applied[1])
+        self.assertTrue(after[0], after[1])
+
+    def test_setup_does_not_wipe_a_hand_set_agent_edition(self) -> None:
+        """`run.py` documents AGENT_EDITION as something a learner sets in this file, and
+        re-running setup is now routine — it installs two models."""
+        self.env_file.write_text("AGENT_EDITION=agentgraph\n", encoding="utf-8")
+        setup.write_env_file(setup.QWEN.env)
+        text = self.env_file.read_text(encoding="utf-8")
+        self.assertIn("AGENT_EDITION=agentgraph", text)
+        self.assertIn("MELLUM_MODEL=agentfix-qwen", text)
+
+        # Switching back to the default tier drops our lines and keeps theirs, so the file
+        # stays rather than being deleted with someone else's setting inside it.
+        setup.write_env_file(setup.MELLUM2.env)
+        text = self.env_file.read_text(encoding="utf-8")
+        self.assertIn("AGENT_EDITION=agentgraph", text)
+        self.assertNotIn("MELLUM_MODEL=", text)
+
+        # ... and with nothing of anyone else's in it, it is removed as before.
+        self.env_file.write_text("MELLUM_MODEL=agentfix-qwen\n", encoding="utf-8")
+        setup.write_env_file(setup.MELLUM2.env)
+        self.assertFalse(self.env_file.exists())
+
+    def test_export_lines_match_the_shell(self) -> None:
+        self.assertEqual(
+            setup.export_lines(setup.QWEN, platform_of("linux")),
+            ["export MELLUM_MODEL=agentfix-qwen", "export AGENTGRAPH_MODEL=agentgraph-qwen3"],
         )
         self.assertEqual(
-            setup.export_line(setup.QWEN, platform_of("windows")),
-            "$env:MELLUM_MODEL = 'agentfix-qwen'",
+            setup.export_lines(setup.QWEN, platform_of("windows")),
+            [
+                "$env:MELLUM_MODEL = 'agentfix-qwen'",
+                "$env:AGENTGRAPH_MODEL = 'agentgraph-qwen3'",
+            ],
         )
-        self.assertIsNone(setup.export_line(setup.MELLUM2, platform_of("macos")))
+        self.assertEqual(setup.export_lines(setup.MELLUM2, platform_of("macos")), [])
 
 
 class TestDryRun(unittest.TestCase):
@@ -460,8 +670,9 @@ class TestDryRun(unittest.TestCase):
                         self.assertEqual(setup.execute(steps, opts), 0)
                     self.assertIn("would run:", printed.getvalue())
 
-    def test_a_dry_run_does_not_write_the_qwen_modelfile(self) -> None:
-        self.assertFalse(setup.QWEN_MODELFILE.exists(), "left over from an earlier run")
+    def test_a_dry_run_does_not_write_any_generated_modelfile(self) -> None:
+        for path in (setup.QWEN_MODELFILE, setup.QWEN3_MODELFILE, setup.MELLUM_THINKING_MODELFILE):
+            self.assertFalse(path.exists(), "%s left over from an earlier run" % path.name)
 
     def test_execute_never_calls_apply_on_a_dry_run(self) -> None:
         """execute() is the only gate on --dry-run, so this is the test that guards it.
@@ -479,6 +690,26 @@ class TestDryRun(unittest.TestCase):
             step.apply = explode
         with quiet():
             self.assertEqual(setup.execute(steps, opts), 0)
+
+    def test_the_server_is_started_with_one_model_slot(self) -> None:
+        """Two 8 GB models can be resident at once inside Ollama\'s five-minute keep-alive
+        window, which is how a correctly set-up 16 GB laptop starts swapping."""
+        seen = {}
+
+        def record(command, opts, **kwargs):
+            seen.update(kwargs)
+            return True, "done"
+
+        original = setup.run_command
+        setup.run_command = record
+        try:
+            step = setup.server_step(platform_of("linux", has_systemd=False), setup.Options())
+            setattr(setup, "_wait_for_server", lambda *a, **k: True)
+            with quiet():
+                step.apply()
+        finally:
+            setup.run_command = original
+        self.assertEqual(seen.get("env"), {"OLLAMA_MAX_LOADED_MODELS": "1"})
 
     def test_the_backgrounded_server_still_goes_through_run_command(self) -> None:
         """`ollama serve` never returns, so it is spawned rather than waited on — but it must
@@ -552,6 +783,38 @@ class TestEntryPoints(unittest.TestCase):
         self.assertIn("setup.py", (ROOT / "setup.sh").read_text(encoding="utf-8"))
         self.assertIn("--bootstrapped", (ROOT / "setup.sh").read_text(encoding="utf-8"))
         self.assertIn("--bootstrapped", (ROOT / "setup.ps1").read_text(encoding="utf-8"))
+
+    def test_the_powershell_script_only_relaxes_errors_where_it_must(self) -> None:
+        """`$ErrorActionPreference = "SilentlyContinue"` at script scope is a blanket
+        catch-and-continue around every cmdlet in the file: a failing Join-Path, Test-Path or
+        Get-Command hands back $null and the script carries on with it. The reason it was set
+        that way is real but narrow -- under "Stop", PowerShell 5.x turns a native command's
+        stderr into a terminating error, and probing for an interpreter means running commands
+        whose "not found" answer IS stderr -- so the tolerance belongs in the functions that
+        make those calls, where it is scoped to them.
+        """
+        text = (ROOT / "setup.ps1").read_text(encoding="utf-8")
+        assignments = [
+            (match.group(1), match.group(2))
+            for match in re.finditer(
+                r"^([ \t]*)\$ErrorActionPreference\s*=\s*\"(\w+)\"", text, re.M
+            )
+        ]
+        self.assertTrue(assignments, "setup.ps1 sets no error preference at all")
+        script_scoped = [value for indent, value in assignments if not indent]
+        self.assertEqual(script_scoped, ["Stop"], "the script default must stay Stop")
+        for indent, value in assignments:
+            if indent:
+                self.assertEqual(
+                    value, "Continue", "a scoped relaxation should be Continue, not silence"
+                )
+
+    def test_the_powershell_script_stays_ascii(self) -> None:
+        """A .ps1 read as ANSI rather than UTF-8 mangles anything above 7 bits, and Windows
+        PowerShell 5.1 does exactly that with an unsigned, BOM-less script."""
+        text = (ROOT / "setup.ps1").read_text(encoding="utf-8")
+        offenders = sorted({character for character in text if ord(character) > 127})
+        self.assertEqual(offenders, [], "non-ASCII characters in setup.ps1")
 
     def test_setup_py_accepts_being_bootstrapped(self) -> None:
         self.assertTrue(setup.parse_args(["--bootstrapped"]).bootstrapped)
@@ -718,25 +981,42 @@ class TestHasModel(unittest.TestCase):
 
 
 class TestNoDrift(unittest.TestCase):
-    """The lesson ships six copies of `agentfix/`, one per step, and they drift.
+    """Each lesson ships one copy of its package per step, and they drift.
 
     It has happened twice already — a tier that the README no longer had, and tier numbers that
-    stopped matching. These two tests are cheap and catch the whole class of it.
+    stopped matching. These tests are cheap and catch the whole class of it.
+
+    Grouped by package rather than compared globally: the three editions have three different
+    doctors (the `agentgraph` one also checks that the model reasons), so the invariant is that
+    every copy of ONE package agrees, not that all eight files are identical.
     """
 
-    DOCTORS = sorted(ROOT.glob("agentfix/*/*/agentfix/doctor.py"))
+    DOCTORS = sorted(ROOT.glob("agentfix/*/*/*/doctor.py"))
+
+    def by_package(self):
+        packages = {}
+        for path in self.DOCTORS:
+            packages.setdefault(path.parent.name, []).append(path)
+        return packages
+
+    def test_every_edition_has_its_doctor_in_every_step(self) -> None:
+        self.assertEqual(
+            dict((name, len(paths)) for name, paths in self.by_package().items()),
+            {"agentfix": 2, "agentlang": 4, "agentgraph": 2},
+            "a lesson step gained or lost a doctor.py",
+        )
 
     def test_every_doctor_copy_agrees(self) -> None:
-        self.assertEqual(len(self.DOCTORS), 6, "a lesson step gained or lost a doctor.py")
-        texts = {}
-        for path in self.DOCTORS:
-            texts.setdefault(path.read_text(encoding="utf-8"), []).append(
-                str(path.relative_to(ROOT))
-            )
-        if len(texts) > 1:
-            groups = ["\n    ".join(paths) for paths in texts.values()]
-            self.fail("doctor.py has diverged between lesson steps:\n    " +
-                      "\n  --- vs ---\n    ".join(groups))
+        for package, paths in sorted(self.by_package().items()):
+            texts = {}
+            for path in paths:
+                texts.setdefault(path.read_text(encoding="utf-8"), []).append(
+                    str(path.relative_to(ROOT))
+                )
+            if len(texts) > 1:
+                groups = ["\n    ".join(names) for names in texts.values()]
+                self.fail("%s/doctor.py has diverged between lesson steps:\n    " % package +
+                          "\n  --- vs ---\n    ".join(groups))
 
     def test_the_windows_memory_struct_matches_setup_py(self) -> None:
         """Both files read RAM through MEMORYSTATUSEX. The struct is an ABI: a field out of

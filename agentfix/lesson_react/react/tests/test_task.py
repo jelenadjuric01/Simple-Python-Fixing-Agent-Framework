@@ -1506,6 +1506,30 @@ class TestLLMConfig(unittest.TestCase):
         self.assertEqual(config.base_url, "http://x/v1")
         self.assertEqual(config.model, "m")
 
+    def test_this_edition_has_its_own_model_variable(self):
+        """The failure this prevents is a silent one.
+
+        `setup.py --tier qwen` records two models: a coding one in MELLUM_MODEL and a thinking
+        one in AGENTGRAPH_MODEL. If this edition read MELLUM_MODEL first it would run on
+        `agentfix-qwen`, which has no thinking mode — a working agent that has quietly become
+        the Act-only one from the previous lesson.
+        """
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(
+            os.environ,
+            {"MELLUM_MODEL": "agentfix-qwen", "AGENTGRAPH_MODEL": "agentgraph-qwen3"},
+        ):
+            self.assertEqual(LLMConfig.from_env().model, "agentgraph-qwen3")
+
+        # ... and MELLUM_MODEL still works on its own, for a hand-built model.
+        with mock.patch.dict(os.environ, {"MELLUM_MODEL": "my-own-thinking-build"}, clear=True):
+            self.assertEqual(LLMConfig.from_env().model, "my-own-thinking-build")
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(LLMConfig.from_env().model, DEFAULT_MODEL)
+
     def test_the_config_is_frozen(self):
         with self.assertRaises(Exception):
             LLMConfig().model = "other"  # type: ignore[misc]

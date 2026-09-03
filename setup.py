@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """The workshop's model setup: the tier, the models, the context window, the model choice.
 
+Two models per tier, because the course has two kinds of agent in it: a coding model for the
+first two editions and a *thinking* model for the third. Both are pulled in the same run.
+
 Not the entry point. Run `./setup.sh` (macOS, Linux, WSL2, ChromeOS) or
 `powershell -ExecutionPolicy Bypass -File setup.ps1` (Windows). Those install Python 3.12 when
 the machine has none or has one too old, then run this file under it.
@@ -43,38 +46,89 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parent
 
-# These mirror agentfix/config.py. Duplicated rather than imported, deliberately: setup.py has to
-# run before the framework lesson's working directory exists, and the course root contains a
-# *section* directory also called `agentfix/`, which Python would import instead of the package.
-# If you change a model name in config.py, change it here too.
+# These mirror the three editions' config.py. Duplicated rather than imported, deliberately:
+# setup.py has to run before the framework lessons' working directories exist, and the course
+# root contains a *section* directory also called `agentfix/`, which Python would import instead
+# of the package. If you change a model name in a config.py, change it here too.
+#
+# Two models per tier, because the course has two kinds of agent in it. The Instruct checkpoint
+# is what the no-framework agent (`agentfix`) and the LangGraph one (`agentlang`) run on. The
+# Thinking checkpoint — same 12B/A2.5B weights, trained to emit its reasoning inside
+# `<think>...</think>` before it answers — is what the third edition (`agentgraph`) is *about*.
+# A non-thinking model does not substitute for it: the agent still runs, and is silently the
+# Act-only agent from the previous lesson, with every reasoning-shaped thing in the trace gone.
 MELLUM_BASE_MODEL = "hf.co/JetBrains/Mellum2-12B-A2.5B-Instruct-GGUF-Q4_K_M"
+MELLUM_THINKING_BASE_MODEL = "hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M"
+
+# The small tier needs the same pair for the same reason, and it cannot be one model twice:
+# `qwen2.5-coder:1.5b` has no thinking mode at all, so `agentgraph` gets qwen3 — the smallest
+# thing that both reasons and calls tools.
 QWEN_BASE_MODEL = "qwen2.5-coder:1.5b"
+QWEN3_BASE_MODEL = "qwen3:1.7b"
+
 MIN_CONTEXT_LENGTH = 16384
+
+# The variables the editions read to override their default model. `agentfix` and `agentlang`
+# share MELLUM_MODEL; `agentgraph` reads AGENTGRAPH_MODEL first, because a single variable
+# cannot name both a coding model and a thinking one — pointing MELLUM_MODEL at the small
+# tier's `agentfix-qwen` would silently take the reasoning out of the third lesson.
+INSTRUCT_ENV_KEY = "MELLUM_MODEL"
+THINKING_ENV_KEY = "AGENTGRAPH_MODEL"
+ENV_KEYS = (INSTRUCT_ENV_KEY, THINKING_ENV_KEY)
 
 MIN_PYTHON = (3, 12)
 PYTHON_SERIES = "3.12"
 
-# The tier boundaries. 16 GiB is the line the workshop's own RAM check uses: an 8 GB model plus
-# the OS does not fit comfortably below it. The 8 GiB floor is newer and comes from a fresh
-# Chromebook with 3.4 GB, which the RAM check happily routed to the small model — where the IDE,
-# the Ollama server and a 16k context still do not fit. Below the floor the honest answer is that
-# no local model belongs on this machine.
+# The tier boundaries, in terms of what has to be in memory AT ONCE. Each tier installs two
+# models now, but a lesson runs one edition at a time, so the number that decides the tier is
+# still the size of the LARGER single model rather than the sum: 16 GiB is the line the
+# workshop's own RAM check uses, because one 8 GB model plus the OS does not fit comfortably
+# below it. What the second model costs is disk, and — if you switch editions inside Ollama's
+# five-minute keep-alive window — a second copy resident alongside the first. That is a
+# scheduling problem, not a RAM tier: setup starts the server with OLLAMA_MAX_LOADED_MODELS=1
+# wherever it starts the server itself, and prints the `ollama stop` line wherever it cannot.
+#
+# The 8 GiB floor is newer and comes from a fresh Chromebook with 3.4 GB, which the RAM check
+# happily routed to the small model — where the IDE, the Ollama server and a 16k context still do
+# not fit. Below the floor the honest answer is that no local model belongs on this machine.
 MELLUM2_MIN_RAM_BYTES = 16 * 1024 ** 3
 LOCAL_MIN_RAM_BYTES = 8 * 1024 ** 3
 
+# Disk is where the second model actually shows up, and running out of it happens mid-pull:
+# Ollama writes the blob, then the manifest, and a filesystem with nothing left over fails
+# somewhere in between. The margin is for that, and for the derived models' manifests.
+DISK_MARGIN_BYTES = 2 * 1024 ** 3
+
+# Only one model in memory at a time. Ollama's default is three, which is right for a serving
+# box and wrong here: two 8 GB models resident on a 16 GB laptop is the one way this course can
+# make a correctly set-up machine look broken. Set for the server process, so it only applies
+# where setup is the thing that starts the server.
+SERVER_ENV = {"OLLAMA_MAX_LOADED_MODELS": "1"}
+
 ENV_FILE = ROOT / ".agentfix.env"
+# `Modelfile` is the one committed to the repo (and shown to learners as course content); the
+# other three are generated, because `ollama create` runs with the course root as its working
+# directory and every derived model needs its own file there.
 MELLUM_MODELFILE = ROOT / "Modelfile"
+MELLUM_THINKING_MODELFILE = ROOT / "Modelfile.agentgraph-thinking"
 QWEN_MODELFILE = ROOT / "Modelfile.agentfix-qwen"
+QWEN3_MODELFILE = ROOT / "Modelfile.agentgraph-qwen3"
 NOTEBOOK = "notebooks/agentfix.ipynb"
 
 PYTHON_ORG = "https://www.python.org/downloads/"
 OLLAMA_DOWNLOAD = "https://ollama.com/download"
 
 SERVER_TIMEOUT_S = 90.0
+
+# `run_command`'s verdict when the learner said no, as opposed to when the command ran and
+# failed. A caller that has to clean something up needs to tell those apart: a command that
+# exits non-zero because there was nothing to remove is fine, and a command that never ran
+# because it was declined leaves the machine in the state the step was there to fix.
+DECLINED = "declined — nothing was changed"
 
 
 # --------------------------------------------------------------------------------------------
@@ -127,50 +181,128 @@ class Platform:
 
 
 @dataclass(frozen=True)
-class Tier:
-    name: str
-    base_model: str
-    derived_model: str
+class Model:
+    """One model this machine needs: what to pull, what to derive, and who reads it.
+
+    A tier is a pair of these rather than a single model, because the course has two kinds of
+    agent in it and the difference is not a detail: the first two editions write code, the third
+    one reasons before it writes. Both halves are pulled in the same run so nobody meets an 8 GB
+    download in the middle of the lesson that needs it.
+    """
+
+    kind: str  # "instruct" | "thinking" — what distinguishes it, and what names its steps
+    editions: str  # which of the course's agents run on it, for the plan's wording
+    base: str
+    derived: str
     modelfile: Path
-    # Only the fallback tier needs a generated Modelfile; mellum2 uses the one in the repo.
+    # False only for the repo's committed `Modelfile`; the other three are written by setup.
     generate_modelfile: bool
-    # MELLUM_MODEL value the rest of the workshop needs, or None when the derived model already
-    # is config.DEFAULT_MODEL and no override is required.
-    env_model: Optional[str]
+    download: str  # the size, in the words the step uses to warn about it
+    disk_bytes: int  # what the pull costs on disk, for the free-space note
+    env_key: str  # the variable the editions using this model read
+    # The value those editions need, or None when `derived` already is their config.DEFAULT_MODEL
+    # and no override is required.
+    env_value: Optional[str]
+
+
+@dataclass(frozen=True)
+class Tier:
+    """What this machine can run: a name, and the models that go with it."""
+
+    name: str
+    models: Tuple[Model, ...]
 
     @property
     def local(self) -> bool:
         """Is there anything to install on this machine? False only for the colab verdict."""
-        return bool(self.base_model)
+        return bool(self.models)
+
+    @property
+    def env(self) -> Dict[str, str]:
+        """The model overrides this tier needs — one entry per edition that is not on default."""
+        return dict(
+            (model.env_key, model.env_value)
+            for model in self.models
+            if model.env_value is not None
+        )
+
+    @property
+    def disk_bytes(self) -> int:
+        """Free disk the whole tier needs. A sum, unlike the RAM figure: both models are kept."""
+        return sum(model.disk_bytes for model in self.models) + DISK_MARGIN_BYTES
+
+    @property
+    def largest_model_bytes(self) -> int:
+        """The one that has to fit in memory. Never the sum — one edition runs at a time."""
+        return max(model.disk_bytes for model in self.models)
+
+    @property
+    def derived_names(self) -> str:
+        return " and ".join(model.derived for model in self.models)
 
 
 # Not a model at all: the verdict "run this in a browser instead". It carries no models, so it
 # never reaches plan_steps.
-COLAB = Tier(
-    name="colab",
-    base_model="",
-    derived_model="",
-    modelfile=Path(NOTEBOOK),
-    generate_modelfile=False,
-    env_model=None,
-)
+COLAB = Tier(name="colab", models=())
 
 MELLUM2 = Tier(
     name="mellum2",
-    base_model=MELLUM_BASE_MODEL,
-    derived_model="agentfix-mellum2",
-    modelfile=MELLUM_MODELFILE,
-    generate_modelfile=False,
-    env_model=None,
+    models=(
+        Model(
+            kind="instruct",
+            editions="agentfix and agentlang",
+            base=MELLUM_BASE_MODEL,
+            derived="agentfix-mellum2",
+            modelfile=MELLUM_MODELFILE,
+            generate_modelfile=False,
+            download="about 8 GB",
+            disk_bytes=8_700_000_000,
+            env_key=INSTRUCT_ENV_KEY,
+            env_value=None,
+        ),
+        Model(
+            kind="thinking",
+            editions="agentgraph",
+            base=MELLUM_THINKING_BASE_MODEL,
+            derived="agentgraph-mellum2-thinking",
+            modelfile=MELLUM_THINKING_MODELFILE,
+            generate_modelfile=True,
+            download="another 8 GB",
+            disk_bytes=8_700_000_000,
+            env_key=THINKING_ENV_KEY,
+            env_value=None,
+        ),
+    ),
 )
 
 QWEN = Tier(
     name="qwen",
-    base_model=QWEN_BASE_MODEL,
-    derived_model="agentfix-qwen",
-    modelfile=QWEN_MODELFILE,
-    generate_modelfile=True,
-    env_model="agentfix-qwen",
+    models=(
+        Model(
+            kind="instruct",
+            editions="agentfix and agentlang",
+            base=QWEN_BASE_MODEL,
+            derived="agentfix-qwen",
+            modelfile=QWEN_MODELFILE,
+            generate_modelfile=True,
+            download="about 1 GB",
+            disk_bytes=1_000_000_000,
+            env_key=INSTRUCT_ENV_KEY,
+            env_value="agentfix-qwen",
+        ),
+        Model(
+            kind="thinking",
+            editions="agentgraph",
+            base=QWEN3_BASE_MODEL,
+            derived="agentgraph-qwen3",
+            modelfile=QWEN3_MODELFILE,
+            generate_modelfile=True,
+            download="about 1.4 GB",
+            disk_bytes=1_500_000_000,
+            env_key=THINKING_ENV_KEY,
+            env_value="agentgraph-qwen3",
+        ),
+    ),
 )
 
 TIERS = {"mellum2": MELLUM2, "qwen": QWEN}
@@ -324,9 +456,17 @@ def has_model(names: Sequence[str], wanted: str) -> bool:
     return False
 
 
-def _spawn_background(command: Sequence[str]) -> Tuple[bool, str]:
+def _spawn_background(
+    command: Sequence[str], env: Optional[Dict[str, str]] = None
+) -> Tuple[bool, str]:
     """Start a blocking server command detached, so it outlives this script."""
     kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if env:
+        # Merged onto our own environment rather than replacing it: the server still needs PATH,
+        # HOME and (on Windows) SystemRoot to find its own model directory.
+        merged = dict(os.environ)
+        merged.update(env)
+        kwargs["env"] = merged
     if os.name == "nt":
         # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP: no console window, and Ctrl-C in this
         # script does not kill the server it just started.
@@ -363,6 +503,7 @@ def run_command(
     shell: bool = False,
     quiet: bool = False,
     background: bool = False,
+    env: Optional[Dict[str, str]] = None,
 ) -> Tuple[bool, str]:
     """The single execution seam. Shows the command, asks, runs it, reports a verdict.
 
@@ -371,17 +512,28 @@ def run_command(
     is for a command that never returns (`ollama serve`): it is detached instead of waited on.
     """
     printable = command if isinstance(command, str) else " ".join(command)
-    print("     $ %s%s" % (printable, "   (in the background)" if background else ""))
+    # The environment is part of the command as far as the learner is concerned — printing
+    # `ollama serve` while quietly setting OLLAMA_MAX_LOADED_MODELS would make this script the
+    # kind of thing that changes something it did not show you.
+    prefix = "".join("%s=%s " % (key, env[key]) for key in sorted(env)) if env else ""
+    print("     $ %s%s%s" % (prefix, printable, "   (in the background)" if background else ""))
     if not confirm(opts, "run it?"):
-        return False, "declined — nothing was changed"
+        return False, DECLINED
     if background:
-        return _spawn_background(command if isinstance(command, list) else list(command))
+        return _spawn_background(
+            command if isinstance(command, list) else list(command), env=env
+        )
     try:
+        merged = None
+        if env:
+            merged = dict(os.environ)
+            merged.update(env)
         completed = subprocess.run(
             command,
             shell=shell,
             cwd=str(ROOT),
             stdout=subprocess.DEVNULL if quiet else None,
+            env=merged,
         )
     except OSError as error:
         return False, "could not run it: %s" % error
@@ -405,8 +557,8 @@ def _ask_tier(opts: Options) -> Optional[Tier]:
     if not sys.stdin.isatty():
         return None
     print("  Which tier do you want?")
-    print("    1) mellum2 — the reference path, needs 16 GB RAM and an 8 GB download")
-    print("    2) qwen    — the small fallback, ~1 GB")
+    print("    1) mellum2 — the reference path: 16 GB RAM, and two 8 GB models to download")
+    print("    2) qwen    — the small fallback: two models, ~2.5 GB in total")
     try:
         reply = input("  1 or 2: ").strip()
     except (EOFError, KeyboardInterrupt):
@@ -445,7 +597,11 @@ def resolve_tier(opts: Options, plat: Platform) -> Optional[Tier]:
 
     gigabytes = total / 1024 ** 3
     if total >= MELLUM2_MIN_RAM_BYTES:
-        print("  %.1f GB RAM -> mellum2 tier (the reference path)." % gigabytes)
+        # 16 GB is the line for ONE 8 GB model, and one is all a lesson uses. The tier's second
+        # model costs disk, not RAM — see print_disk_note and print_one_at_a_time.
+        print("  %.1f GB RAM -> mellum2 tier (the reference path): 16 GB holds one 8 GB model,"
+              % gigabytes)
+        print("    and the two lessons that need one never run at the same time.")
         return MELLUM2
     if total >= LOCAL_MIN_RAM_BYTES:
         print("  %.1f GB RAM, under 16 GB -> qwen tier (the small fallback)." % gigabytes)
@@ -688,7 +844,10 @@ def server_step(plat: Platform, opts: Options) -> Step:
         preview = " ".join(command) + (" &" if blocking else "")
 
         def apply() -> Tuple[bool, str]:
-            ok, detail = run_command(command, opts, background=blocking)
+            # SERVER_ENV only reaches a server this script starts. Where the server is already
+            # running, or is started by launchd/systemd, the cap has to be set there instead —
+            # which is what the note printed after READY is for.
+            ok, detail = run_command(command, opts, background=blocking, env=SERVER_ENV)
             if not ok:
                 return False, detail
             print("     waiting for the server to answer...")
@@ -705,41 +864,46 @@ def server_step(plat: Platform, opts: Options) -> Step:
 # --- Models ----------------------------------------------------------------------------------
 
 
-def base_model_step(tier: Tier, opts: Options) -> Step:
+def base_model_step(model: Model, opts: Options) -> Step:
     def probe() -> Tuple[bool, str]:
         names = installed_models(opts.base_url)
         if names is None:
             return False, "the server is not answering, so its models cannot be listed"
-        if has_model(names, tier.base_model):
-            return True, tier.base_model
-        return False, tier.base_model + " has not been pulled"
+        if has_model(names, model.base):
+            return True, model.base
+        return False, model.base + " has not been pulled"
 
-    command = ["ollama", "pull", tier.base_model]
-    size = "about 8 GB" if tier is MELLUM2 else "about 1 GB"
+    command = ["ollama", "pull", model.base]
 
     def apply() -> Tuple[bool, str]:
         return run_command(command, opts)
 
     return Step(
-        "base model",
+        "base model (%s)" % model.kind,
         probe,
-        "Pull the base model (%s). Do this before the session, not during it." % size,
+        "Pull the %s base model (%s), which %s run on. Do this before the session, not "
+        "during it." % (model.kind, model.download, model.editions),
         " ".join(command),
         apply,
     )
 
 
-QWEN_MODELFILE_TEXT = (
-    "# Generated by setup.py. The context window has to be baked into the model: Ollama's\n"
-    "# OpenAI-compatible /v1 endpoint drops per-request `options`, so num_ctx set there is\n"
-    "# silently ignored and long runs lose their own history mid-task.\n"
-    "FROM %s\n"
-    "\n"
-    "PARAMETER num_ctx %d\n"
-) % (QWEN_BASE_MODEL, MIN_CONTEXT_LENGTH)
+def modelfile_text(base: str) -> str:
+    """A Modelfile whose only job is to carry the context window."""
+    return (
+        "# Generated by setup.py. The context window has to be baked into the model: Ollama's\n"
+        "# OpenAI-compatible /v1 endpoint drops per-request `options`, so num_ctx set there is\n"
+        "# silently ignored and long runs lose their own history mid-task.\n"
+        "FROM %s\n"
+        "\n"
+        "PARAMETER num_ctx %d\n"
+    ) % (base, MIN_CONTEXT_LENGTH)
 
 
-def derived_model_step(tier: Tier, opts: Options) -> Step:
+QWEN_MODELFILE_TEXT = modelfile_text(QWEN_BASE_MODEL)
+
+
+def derived_model_step(model: Model, opts: Options) -> Step:
     """Not optional. `num_ctx` cannot be set over Ollama's /v1 endpoint, so running the base
     model directly gives a 4,096-token context and an agent that silently forgets mid-run."""
 
@@ -747,29 +911,29 @@ def derived_model_step(tier: Tier, opts: Options) -> Step:
         names = installed_models(opts.base_url)
         if names is None:
             return False, "the server is not answering, so its models cannot be listed"
-        if has_model(names, tier.derived_model):
-            return True, "%s (num_ctx %d)" % (tier.derived_model, MIN_CONTEXT_LENGTH)
-        return False, tier.derived_model + " has not been created"
+        if has_model(names, model.derived):
+            return True, "%s (num_ctx %d)" % (model.derived, MIN_CONTEXT_LENGTH)
+        return False, model.derived + " has not been created"
 
-    command = ["ollama", "create", tier.derived_model, "-f", tier.modelfile.name]
+    command = ["ollama", "create", model.derived, "-f", model.modelfile.name]
 
     def apply() -> Tuple[bool, str]:
-        if tier.generate_modelfile:
+        if model.generate_modelfile:
             # In the repo, not /tmp: native Windows has no /tmp, and one code path beats two.
-            print("     writing %s" % tier.modelfile.name)
+            print("     writing %s" % model.modelfile.name)
             try:
-                tier.modelfile.write_text(QWEN_MODELFILE_TEXT, encoding="utf-8")
+                model.modelfile.write_text(modelfile_text(model.base), encoding="utf-8")
             except OSError as error:
-                return False, "could not write %s: %s" % (tier.modelfile.name, error)
-        elif not tier.modelfile.is_file():
-            return False, "%s is missing from the course root" % tier.modelfile.name
+                return False, "could not write %s: %s" % (model.modelfile.name, error)
+        elif not model.modelfile.is_file():
+            return False, "%s is missing from the course root" % model.modelfile.name
         return run_command(command, opts)
 
     return Step(
-        "derived model",
+        "derived model (%s)" % model.kind,
         probe,
-        "Derive the model that carries num_ctx %d — without it the agent's history is "
-        "silently truncated." % MIN_CONTEXT_LENGTH,
+        "Derive the %s model that carries num_ctx %d — without it the agent's history is "
+        "silently truncated." % (model.kind, MIN_CONTEXT_LENGTH),
         " ".join(command),
         apply,
     )
@@ -780,6 +944,9 @@ def derived_model_step(tier: Tier, opts: Options) -> Step:
 ENV_FILE_HEADER = (
     "# Written by setup.py. `run.py` reads this file and passes it to the agent, so the model\n"
     "# choice survives a new terminal. A real environment variable wins over this file.\n"
+    "#\n"
+    "# One line per edition that is not on its default model: MELLUM_MODEL for the agentfix and\n"
+    "# agentlang lessons, AGENTGRAPH_MODEL for the thinking one.\n"
 )
 
 SHELL_BLOCK_START = "# >>> agentfix setup >>>"
@@ -818,61 +985,121 @@ def _strip_managed_block(text: str) -> str:
     return "".join(kept)
 
 
-def _managed_block(model: str, profile: Path) -> str:
+def _assignment(key: str, value: str, profile: Path) -> str:
     if profile.name == "config.fish":
-        assignment = "set -gx MELLUM_MODEL %s" % model
-    else:
-        assignment = "export MELLUM_MODEL=%s" % model
-    return "%s\n%s\n%s\n" % (SHELL_BLOCK_START, assignment, SHELL_BLOCK_END)
+        return "set -gx %s %s" % (key, value)
+    return "export %s=%s" % (key, value)
 
 
-def write_env_file(model: Optional[str]) -> None:
-    """MELLUM_MODEL for run.py to inject, or no file at all on the default tier."""
-    if model is None:
+def _managed_block(env: Dict[str, str], profile: Path) -> str:
+    """One marked block, however many variables the tier needs, so removing it stays one step."""
+    lines = [_assignment(key, env[key], profile) for key in ENV_KEYS if key in env]
+    return "%s\n%s\n%s\n" % (SHELL_BLOCK_START, "\n".join(lines), SHELL_BLOCK_END)
+
+
+def env_file_assignments() -> Dict[str, str]:
+    """`.agentfix.env` as a dict, parsed the way run.py parses it. Empty if it is not there."""
+    found = {}  # type: Dict[str, str]
+    if not ENV_FILE.is_file():
+        return found
+    try:
+        text = ENV_FILE.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return found
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        found[key.strip()] = value.strip()
+    return found
+
+
+def write_env_file(env: Dict[str, str]) -> None:
+    """Rewrite the model lines in `.agentfix.env`, leaving anything else in it alone.
+
+    Not a plain overwrite: `run.py` documents AGENT_EDITION as something a learner can set in
+    this file to fix which edition their commands run against, and re-running setup — now
+    routine, since it installs two models — would silently delete it. So only the keys this
+    script owns are rewritten, and the file is removed only when nothing at all is left in it.
+    """
+    others = dict(
+        (key, value) for key, value in env_file_assignments().items() if key not in ENV_KEYS
+    )
+    if not env and not others:
         if ENV_FILE.exists():
             ENV_FILE.unlink()
         return
-    ENV_FILE.write_text("%sMELLUM_MODEL=%s\n" % (ENV_FILE_HEADER, model), encoding="utf-8")
+    lines = "".join("%s=%s\n" % (key, others[key]) for key in sorted(others))
+    lines += "".join("%s=%s\n" % (key, env[key]) for key in ENV_KEYS if key in env)
+    ENV_FILE.write_text(ENV_FILE_HEADER + lines, encoding="utf-8")
 
 
-def _windows_env_commands(model: Optional[str]) -> Sequence[str]:
-    if model is None:
-        # `setx VAR ""` leaves an empty-but-present variable, which reads as a model named "".
-        return ["reg", "delete", "HKCU\\Environment", "/F", "/V", "MELLUM_MODEL"]
-    return ["setx", "MELLUM_MODEL", model]
+def _windows_env_commands(
+    env: Dict[str, str], remove: Sequence[str] = ()
+) -> List[List[str]]:
+    """`setx` for the variables this tier overrides, `reg delete` for stale ones to clear.
+
+    Removal is `reg delete` rather than `setx VAR ""`, which leaves an empty-but-present
+    variable behind — and an empty MELLUM_MODEL reads as a model named "". Nothing is emitted
+    for a variable that is neither wanted nor set: prompting to delete something that was never
+    there teaches the learner that these prompts can be ignored.
+    """
+    commands = []  # type: List[List[str]]
+    for key in ENV_KEYS:
+        if key in env:
+            commands.append(["setx", key, env[key]])
+        elif key in remove:
+            commands.append(["reg", "delete", "HKCU\\Environment", "/F", "/V", key])
+    return commands
 
 
 def model_choice_step(tier: Tier, plat: Platform, opts: Options) -> Step:
-    """Persist the tier's model in two places, because they solve different halves.
+    """Persist the tier's models in two places, because they solve different halves.
 
     `.agentfix.env` is what makes the workshop work: `run.py` reads it, so every learner command
-    picks up the right model with no shell setup at all. The environment variable is what makes
-    it work *outside* run.py — a bare `python -m agentfix.cli`, a debugger, the IDE's run
-    configuration. A child process cannot set its parent shell's environment, so the variable
-    has to be persisted at the user level (`setx` on Windows, the shell profile on POSIX) and
-    only applies to terminals opened afterwards. Hence both, plus the line to paste right now.
+    picks up the right model with no shell setup at all. The environment variables are what make
+    it work *outside* run.py — a bare `python -m agentgraph.cli`, a debugger, the IDE's run
+    configuration. A child process cannot set its parent shell's environment, so they have to be
+    persisted at the user level (`setx` on Windows, the shell profile on POSIX) and only apply to
+    terminals opened afterwards. Hence both, plus the lines to paste right now.
+
+    Two variables rather than one, because the two halves of the tier are different kinds of
+    model: MELLUM_MODEL names the coding model the first two editions use, AGENTGRAPH_MODEL the
+    thinking one the third needs. On the mellum2 tier both derived names already are those
+    editions' defaults, so there is nothing to write — and a stale override from an earlier
+    `--tier qwen` run has to be *removed*, which is the case this step gets wrong most easily.
     """
+    env = tier.env
     profile = None if plat.powershell else _shell_profile()
+    variables = " and ".join(ENV_KEYS)
     if plat.powershell:
         target = " and in the user environment"
     elif profile is not None:
         target = " and in %s" % profile
     else:
-        target = " (no shell profile found to add MELLUM_MODEL to)"
+        target = " (no shell profile found to add %s to)" % variables
 
     def _file_matches() -> bool:
-        if tier.env_model is None:
-            return not ENV_FILE.exists()
-        if not ENV_FILE.is_file():
-            return False
-        return ("MELLUM_MODEL=" + tier.env_model) in ENV_FILE.read_text(encoding="utf-8")
+        """Only the keys this script owns. A file left holding someone else's AGENT_EDITION is
+        still correct for this tier — see write_env_file."""
+        written = env_file_assignments()
+        return dict(
+            (key, value) for key, value in written.items() if key in ENV_KEYS
+        ) == env
 
-    # Two states the re-probe has to treat as settled even though the profile does not contain
-    # the line: there was no profile to write to, and the learner said no. Neither is a failure —
-    # `.agentfix.env` already carries the model, and setup prints the export line either way.
-    # Without this the step reports "ran, but the check still fails" and the whole run says
-    # NOT DONE after having done everything correctly. Found by the Linux clean room, where the
-    # container has no SHELL set.
+    # States the re-probe has to treat as settled even though the environment it can see does
+    # not contain the lines: there was no profile to write to, the learner declined an
+    # ADDITION, and — on Windows — `setx` succeeded but only for future terminals. None of
+    # those is a failure: `.agentfix.env` already carries the models, and setup prints the
+    # export lines either way. Without this the step reports "ran, but the check still fails"
+    # and the whole run says NOT DONE after having done everything correctly. Found by the
+    # Linux clean room, where the container has no SHELL set, and on Windows by the qwen tier.
+    #
+    # A declined REMOVAL is the exception, and must never land here. There the shell would keep
+    # exporting the previous tier's models while `.agentfix.env` names none, so every new
+    # terminal silently contradicts the tier just chosen — the failure this whole step exists
+    # to prevent. Those paths return a failure with the manual fix in it instead.
     settled = []  # type: List[str]
 
     def _shell_matches() -> bool:
@@ -881,80 +1108,138 @@ def model_choice_step(tier: Tier, plat: Platform, opts: Options) -> Step:
         if plat.powershell:
             # Reading HKCU here would cost a subprocess on every run for a value we would set
             # again anyway; the current process environment is the useful signal.
-            return os.environ.get("MELLUM_MODEL", "") == (tier.env_model or "")
+            return all(
+                os.environ.get(key, "") == env.get(key, "") for key in ENV_KEYS
+            )
         if profile is None or not profile.is_file():
-            return tier.env_model is None
+            return not env
         text = profile.read_text(encoding="utf-8")
-        if tier.env_model is None:
+        if not env:
             return SHELL_BLOCK_START not in text
-        return SHELL_BLOCK_START in text and tier.env_model in text
+        return SHELL_BLOCK_START in text and all(value in text for value in env.values())
 
     def probe() -> Tuple[bool, str]:
         if not (_file_matches() and _shell_matches()):
             return False, "not set for the %s tier yet" % tier.name
-        if tier.env_model is None:
-            return True, "the default model needs no override"
-        return True, "MELLUM_MODEL=%s" % tier.env_model
+        if not env:
+            return True, "both editions' default models need no override"
+        return True, ", ".join("%s=%s" % (key, env[key]) for key in ENV_KEYS if key in env)
 
-    if tier.env_model is None:
-        preview = "remove .agentfix.env and the MELLUM_MODEL override"
+    if not env:
+        preview = "remove .agentfix.env and any %s override" % variables
     else:
-        preview = "write .agentfix.env (MELLUM_MODEL=%s)%s" % (tier.env_model, target)
+        written = " ".join("%s=%s" % (key, env[key]) for key in ENV_KEYS if key in env)
+        preview = "write .agentfix.env (%s)%s" % (written, target)
 
     def apply() -> Tuple[bool, str]:
         try:
-            write_env_file(tier.env_model)
+            write_env_file(env)
         except OSError as error:
             return False, "could not write .agentfix.env: %s" % error
-        print("     %s .agentfix.env" % ("removed" if tier.env_model is None else "wrote"))
+        print("     %s .agentfix.env" % ("removed" if not env else "wrote"))
 
         if not opts.shell_env:
-            return True, "skipped the environment variable (--no-shell-env)"
+            return True, "skipped the environment variables (--no-shell-env)"
 
         if plat.powershell:
-            command = _windows_env_commands(tier.env_model)
-            print("     also setting MELLUM_MODEL for future terminals:")
-            ok, detail = run_command(command, opts, quiet=True)
-            if not ok and tier.env_model is None:
-                # Deleting a variable that was never set is not a failure.
-                return True, "no MELLUM_MODEL to remove"
-            return (ok, detail) if not ok else (True, "set for new terminals")
+            return _apply_windows()
+        return _apply_profile()
 
+    def _apply_windows() -> Tuple[bool, str]:
+        # Which stale variables there are to clear, read from this process's environment: a
+        # `setx` from an earlier run lands in HKCU\Environment, which every shell started after
+        # it inherits — including the one that launched us. Nothing to clear means no prompt.
+        stale = [key for key in ENV_KEYS if key not in env and os.environ.get(key)]
+        commands = _windows_env_commands(env, stale)
+        if not commands:
+            settled.append("nothing to set or remove")
+            return True, "no override to set, and none left over to remove"
+
+        print("     also %s the model variables for future terminals:"
+              % ("setting" if env else "removing"))
+        for command in commands:
+            ok, detail = run_command(command, opts, quiet=True)
+            if ok:
+                continue
+            if detail == DECLINED:
+                # Declining leaves the machine in exactly the state this step exists to fix,
+                # whichever half was declined, so it cannot be reported as done.
+                return False, (
+                    "declined. %s is not recorded for new terminals; run this again, or set "
+                    "the variables by hand with the lines setup prints." % variables
+                )
+            if command[0] == "setx":
+                return False, detail
+            # A `reg delete` that runs and fails means the variable was not in HKCU after all
+            # — it came from this session only. Nothing to clean up, so nothing to report.
+            print("     (%s was not set for new terminals, so there was nothing to remove)"
+                  % command[-1])
+        # `setx` writes HKCU\Environment, which the current process never sees: a child cannot
+        # change its parent's environment, and this process is the one re-probing. Reading
+        # os.environ back would therefore always miss, turning a correct run into "ran, but the
+        # check still fails".
+        settled.append("setx")
+        return True, "set for new terminals" if env else "removed for new terminals"
+
+    def _apply_profile() -> Tuple[bool, str]:
         if profile is None:
             settled.append("no profile")
-            return True, "no shell profile to update — use the export line below"
-        print("     also adding MELLUM_MODEL to %s (for new terminals):" % profile)
-        if not confirm(opts, "edit %s?" % profile.name):
-            settled.append("declined")
-            return True, "left %s alone — use the export line below" % profile.name
+            return True, "no shell profile to update — use the export lines below"
         try:
             existing = profile.read_text(encoding="utf-8") if profile.is_file() else ""
+        except (OSError, ValueError) as error:
+            return False, "could not read %s: %s" % (profile, error)
+
+        stale = SHELL_BLOCK_START in existing
+        if not env and not stale:
+            settled.append("nothing to remove")
+            return True, "no override in %s to remove" % profile.name
+
+        print("     also %s %s in %s (for new terminals):"
+              % ("setting" if env else "removing", variables, profile))
+        if not confirm(opts, "edit %s?" % profile.name):
+            if not env:
+                return False, (
+                    "%s still exports the previous tier's models, and .agentfix.env no longer "
+                    "does — so a new terminal would disagree with this one. Delete the `%s` "
+                    "block from it, or run this again and accept the edit."
+                    % (profile, SHELL_BLOCK_START)
+                )
+            settled.append("declined")
+            return True, "left %s alone — use the export lines below" % profile.name
+
+        try:
             updated = _strip_managed_block(existing)
-            if tier.env_model is not None:
+            if env:
                 if updated and not updated.endswith("\n"):
                     updated += "\n"
-                updated += _managed_block(tier.env_model, profile)
+                updated += _managed_block(env, profile)
             profile.parent.mkdir(parents=True, exist_ok=True)
             profile.write_text(updated, encoding="utf-8")
         except OSError as error:
             return False, "could not edit %s: %s" % (profile, error)
         return True, "updated %s" % profile
 
-    return Step("model choice", probe, "Make the tier's model the one the workshop uses.",
+    return Step("model choice", probe, "Make the tier's models the ones the workshop uses.",
                 preview, apply)
 
 
 def plan_steps(tier: Tier, plat: Platform, opts: Options) -> List[Step]:
     """The ordered plan. A pure function of (tier, platform, options) — which is what lets the
     tests assert the whole platform matrix with none of the tools installed."""
-    return [
+    steps = [
         python_step(plat, opts),
         ollama_binary_step(plat, opts),
         server_step(plat, opts),
-        base_model_step(tier, opts),
-        derived_model_step(tier, opts),
-        model_choice_step(tier, plat, opts),
     ]
+    # Pull-then-derive, per model, in the tier's own order: the instruct pair first, because
+    # that is the edition the course opens with, so a run interrupted halfway still leaves a
+    # machine that can start lesson 2.
+    for model in tier.models:
+        steps.append(base_model_step(model, opts))
+        steps.append(derived_model_step(model, opts))
+    steps.append(model_choice_step(tier, plat, opts))
+    return steps
 
 
 # --------------------------------------------------------------------------------------------
@@ -1006,15 +1291,94 @@ def python_invocation() -> str:
 def print_colab() -> None:
     print("Nothing to install on this machine — the Colab tier runs in a browser.")
     print("Open %s in Google Colab and run it top to bottom." % NOTEBOOK)
-    print("The model, the Ollama server and the exercises all run in the Colab runtime.")
+    print("Ollama and both models run in the Colab runtime, and so do the three agents.")
+    print("The exercises stay here, in the IDE: they are graded against a scripted fake")
+    print("model, so they need no model at all.")
 
 
-def export_line(tier: Tier, plat: Platform) -> Optional[str]:
-    if tier.env_model is None:
-        return None
-    if plat.powershell:
-        return "$env:MELLUM_MODEL = '%s'" % tier.env_model
-    return "export MELLUM_MODEL=%s" % tier.env_model
+def export_lines(tier: Tier, plat: Platform) -> List[str]:
+    """The lines that give THIS terminal the tier's models, one per override it needs."""
+    lines = []  # type: List[str]
+    env = tier.env
+    for key in ENV_KEYS:
+        if key not in env:
+            continue
+        if plat.powershell:
+            lines.append("$env:%s = '%s'" % (key, env[key]))
+        else:
+            lines.append("export %s=%s" % (key, env[key]))
+    return lines
+
+
+def ollama_models_dir() -> Path:
+    """Where Ollama keeps its blobs — the filesystem the pulls actually consume."""
+    override = os.environ.get("OLLAMA_MODELS")
+    if override:
+        return Path(override)
+    return Path.home() / ".ollama" / "models"
+
+
+def free_bytes(path: Path) -> Optional[int]:
+    """Free space on the filesystem holding `path`, or None if we cannot tell.
+
+    Climbs to the first parent that exists: on a machine where Ollama has never run, the models
+    directory itself does not exist yet, and the question is about the filesystem anyway.
+    """
+    candidates = [path]
+    candidates.extend(path.parents)
+    for candidate in candidates:
+        try:
+            return shutil.disk_usage(str(candidate)).free
+        except OSError:
+            continue
+    return None
+
+
+def print_disk_note(tier: Tier) -> None:
+    """A warning, not a step.
+
+    Deliberately not a Step: a Step that fails stops the run, and this is an estimate — the
+    sizes are what the models measured, not what this tag will download today. Being told
+    "12 GB free, this needs about 18" is useful; being blocked by a number that is 3% out and
+    cannot be fixed from here is not.
+    """
+    needed = tier.disk_bytes
+    where = ollama_models_dir()
+    free = free_bytes(where)
+    gigabytes = needed / 1024 ** 3
+    if free is None:
+        print("  disk: %d models, about %.0f GB in %s — check you have room."
+              % (len(tier.models), gigabytes, where))
+        return
+    print("  disk: %d models, about %.0f GB in %s (%.1f GB free)."
+          % (len(tier.models), gigabytes, where, free / 1024 ** 3))
+    if free < needed:
+        print("  ! that is less than the pulls need, and Ollama fails part-way through a pull")
+        print("    rather than up front. Free some space, or use --tier qwen (about %.0f GB)."
+              % (QWEN.disk_bytes / 1024 ** 3))
+
+
+def print_one_at_a_time(tier: Tier, plat: Platform) -> None:
+    """Why two 8 GB models do not mean a 32 GB machine — and the one case where they bite.
+
+    The editions are separate lessons, so only one model is ever needed at once. Ollama keeps
+    the last one loaded for five minutes though, so switching lessons inside that window can put
+    both in memory at the same time. That is the difference between a 16 GB laptop that works
+    and one that swaps, and it is fixable in one command.
+    """
+    if tier.largest_model_bytes < 4 * 1024 ** 3:
+        return  # the small tier: both models together are smaller than one context window's fuss
+    print("\nOne model at a time. The lessons use these one after the other, never together:")
+    for model in tier.models:
+        print("  %-28s %s" % (model.derived, model.editions))
+    print("so this machine only has to hold the bigger of the two — the 16 GB line is about one")
+    print("model, not the pair. Ollama does keep the last one loaded for five minutes, so when")
+    print("you move on to the next lesson:")
+    print("  ollama stop %s" % tier.models[0].derived)
+    print("Or cap it once, in the server's own environment: OLLAMA_MAX_LOADED_MODELS=1")
+    if plat.system == "macos":
+        print("(setup does that for a server it starts itself; the menu-bar app needs")
+        print(" `launchctl setenv OLLAMA_MAX_LOADED_MODELS 1` and a restart of Ollama.)")
 
 
 def execute(steps: Sequence[Step], opts: Options) -> int:
@@ -1113,7 +1477,9 @@ def main(argv: Sequence[str]) -> int:
         print("\nIf you want to try a local model on this machine anyway:")
         print("  %s setup.py --tier qwen" % python_invocation())
         return 0
-    print("  tier: %s -> model %s\n" % (tier.name, tier.derived_model))
+    print("  tier: %s -> models %s" % (tier.name, tier.derived_names))
+    print_disk_note(tier)
+    print()
 
     if plat.system != "windows" and not plat.root and not plat.has_sudo:
         print("  note: not running as root and there is no `sudo` here, so a package install")
@@ -1128,12 +1494,16 @@ def main(argv: Sequence[str]) -> int:
         return status
 
     print("\nREADY" + (" (dry run — nothing was changed)" if opts.dry_run else ""))
-    line = export_line(tier, plat)
-    if line and not opts.dry_run:
-        print("\nThis terminal does not have MELLUM_MODEL yet. For this session:")
-        print("  %s" % line)
-        print("(`python run.py ...` does not need it — it reads .agentfix.env.)")
-    print("\nnext: %s run.py doctor" % python_invocation())
+    lines = export_lines(tier, plat)
+    if lines and not opts.dry_run:
+        print("\nThis terminal does not have the model variables yet. For this session:")
+        for line in lines:
+            print("  %s" % line)
+        print("(`python run.py ...` does not need them — it reads .agentfix.env.)")
+    if not opts.dry_run:
+        print_one_at_a_time(tier, plat)
+    print("\nnext: %s run.py doctor              # the coding model" % python_invocation())
+    print("      %s run.py agentgraph doctor   # the thinking model" % python_invocation())
     return 0
 
 
