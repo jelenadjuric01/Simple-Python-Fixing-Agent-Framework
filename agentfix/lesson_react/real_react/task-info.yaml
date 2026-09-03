@@ -97,9 +97,9 @@ files:
           file: agentgraph/agent/graph.py
           placeholder: 3
         is_visible: false
-      - offset: 27445
-        length: 1513
-        placeholder_text: "# TODO: Exercise 1"
+      - offset: 27453
+        length: 1505
+        placeholder_text: "# TODO"
         dependency:
           section: agentfix
           lesson: lesson_react
