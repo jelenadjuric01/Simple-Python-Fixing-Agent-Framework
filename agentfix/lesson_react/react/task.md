@@ -1,7 +1,5 @@
 # Stage 1 — A model that thinks before it acts
 
-**Imports underlined red?** Right-click the lesson directory and choose **Mark Directory as** → **Sources Root**. That is all it needs — the code itself is fine.
-
 ## What "thinking" actually is
 
 Same 12B weights as the model you have been running, different checkpoint: this one is trained

@@ -1,24 +1,20 @@
 # Now try it at a real thinking model
 
+Ollama keeps the *previous* lesson's model loaded for five minutes, and two 8 GB models at once is what makes a correctly set-up machine start
+swapping. `ollama stop agentfix-mellum2` before the first command above, and it never comes up.
+
 Same three commands as the last lesson, one word different — `agentgraph` instead of `agentlang`:
 
-    python run.py agentgraph doctor
+> **On the `colab` tier, this is the step you do in the browser.** Open
+> `notebooks/agentfix.ipynb` in Google Colab and run it top to bottom. It installs Ollama and the
+> model inside the Colab runtime and runs the same two tasks there, so the commands below and
+> everything this lesson says about reading the trace still apply — only the machine underneath
+> changes. Nothing on your own laptop needs to work for this.
+
+
     python run.py agentgraph solve tasks/workshop/01-shopcart --verbose
     python run.py agentgraph solve tasks/workshop/02-invoice --verbose
 
-Run `doctor` again if you skipped it in the previous step — its reasoning and tool-calling checks
-are the ones that matter now that a real model is answering.
-
-This is a different checkpoint from the last lesson — the Thinking one — and `./setup.sh`
-installed it in the same run as the coding model, so there is normally nothing to pull here. If
-`doctor` says the model is missing, that pull is:
-
-    ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M
-    ollama create agentgraph-mellum2-thinking -f Modelfile
-
-One more thing, if this laptop has 16 GB: Ollama keeps the *previous* lesson's model loaded for
-five minutes, and two 8 GB models at once is what makes a correctly set-up machine start
-swapping. `ollama stop agentfix-mellum2` before the first command above, and it never comes up.
 
 ## What is different in the trace
 
@@ -88,26 +84,5 @@ One thing did get riskier, and it is not the sandbox. `max_tokens` went from 102
 because a single reply is now the reasoning *plus* a complete file. Too low a cap truncates the
 reply and loses the tool call at the end of it — the model appears to stop acting for no reason.
 Too high, on a small context window, is the peak-prompt number above.
-
-# Where to go from here
-
-The course stops at three ideas — tools, a loop, and a verification-based stop condition — plus
-the thinking guard you just added. Deliberately not built, roughly in order of what would pay off
-next on these numbers:
-
-- **Context management.** The clearest gap in the table above. Trimming or summarising old turns,
-  or dropping stale reasoning from the history, is what stands between this agent and a task
-  bigger than a one-file bug.
-- **Planning as its own phase.** The model plans inside a turn now; nothing makes it commit to a
-  plan across turns or notice when it has abandoned one.
-- **Reflection / self-critique.** No separate pass where the model reviews its own diff before the
-  tests do.
-- **Parallel tool calls.** One at a time here, on purpose — `max_concurrency=1` is what keeps the
-  test result honest. Doing it properly means knowing which calls are safe to overlap.
-- **Multi-agent coordination.** One model, one graph, no delegation.
-
-Each of those is a fair amount of work and none of them is magic. If you take one thing from the
-whole course, make it the stop condition: three editions in, the thing that decides whether an
-agent is trustworthy is still that it believes the test suite rather than the model.
 
 No **Check** on this step — nothing here is graded.

@@ -3,16 +3,12 @@
 Everything you wrote so far was checked against a scripted fake model — deliberately, so the
 exercises never depend on your Ollama setup. Now point the graph at the real one.
 
-First, make sure the machine is ready:
+> **On the `colab` tier, this is the step you do in the browser.** Open
+> `notebooks/agentfix.ipynb` in Google Colab and run it top to bottom. It installs Ollama and the
+> model inside the Colab runtime and runs the same two tasks there, so the commands below and
+> everything this lesson says about reading the trace still apply — only the machine underneath
+> changes. Nothing on your own laptop needs to work for this.
 
-    python run.py agentlang doctor
-
-Note the `agentlang` word. There are three agents in this course sharing one course root, and
-that first word chooses which one runs — without it you get the no-framework agent from the
-previous lesson. The `[run.py]` line printed before every command names the directory it picked,
-so which agent ran is never a guess.
-
-Then solve a task:
 
     python run.py agentlang solve tasks/workshop/01-shopcart --verbose
 

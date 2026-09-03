@@ -2,6 +2,13 @@
 
 Lets see how this no framework agent works with a real model and tasks.
 
+> **On the `colab` tier, this is the step you do in the browser.** Open
+> `notebooks/agentfix.ipynb` in Google Colab and run it top to bottom. It installs Ollama and the
+> model inside the Colab runtime and runs the same two tasks there, so the commands below and
+> everything this lesson says about reading the trace still apply — only the machine underneath
+> changes. Nothing on your own laptop needs to work for this.
+
+
 From the terminal at the course root:
 
     python run.py solve tasks/workshop/01-shopcart --verbose

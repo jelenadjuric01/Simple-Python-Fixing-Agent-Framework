@@ -1,7 +1,5 @@
 # What you are about to build
 
-**Imports underlined red?** Right-click on the lesson directory and choose **Mark Directory as** → **Sources Root**. That is all it needs — the code itself is fine.
-
 In the previous lesson you read a hand-written agent and ran it: a plain `for` loop, a tool
 dispatch, and a stop condition, with no framework anywhere. This lesson is **the same agent
 rebuilt on a framework** — LangGraph for the graph, LangChain for the model and tool interfaces
