@@ -81,7 +81,7 @@ jobs:
         run: |
           Write-Host "MELLUM_MODEL (User scope): '$([Environment]::GetEnvironmentVariable('MELLUM_MODEL','User'))'"
           if (Test-Path .agentfix.env) { Get-Content .agentfix.env } else { Write-Host "no .agentfix.env" }
-          if (Test-Path Modelfile.agentfix-qwen) { Get-Content Modelfile.agentfix-qwen }
+          if (Test-Path Modelfile.agentfix-qwen3) { Get-Content Modelfile.agentfix-qwen3 }
           if (Get-Command ollama -ErrorAction SilentlyContinue) { ollama list; ollama ps }
 
       - name: The setup script's own tests

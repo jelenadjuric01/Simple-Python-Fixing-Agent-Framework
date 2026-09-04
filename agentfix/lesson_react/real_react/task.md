@@ -1,7 +1,13 @@
 # Now try it at a real thinking model
 
-Ollama keeps the *previous* lesson's model loaded for five minutes, and two 8 GB models at once is what makes a correctly set-up machine start
-swapping. `ollama stop agentfix-mellum2` before the first command above, and it never comes up.
+Ollama keeps the *previous* lesson's model loaded for five minutes, and two 8 GB models at once is
+what makes a correctly set-up machine start swapping. On the `mellum2` tier, run
+
+    ollama stop agentfix-mellum2
+
+before the first command below, and it never comes up. On the `qwen` tier there is nothing to
+stop: that tier has one model, `agentfix-qwen3`, and this lesson uses the same one the last
+lesson did.
 
 Same three commands as the last lesson, one word different — `agentgraph` instead of `agentlang`:
 

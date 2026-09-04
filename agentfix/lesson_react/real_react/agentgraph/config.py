@@ -49,22 +49,23 @@ DEFAULT_BASE_URL = "http://localhost:11434"
 BASE_MODEL = "hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M"
 DEFAULT_MODEL = "agentgraph-mellum2-thinking"
 
-# The tier-2 model, for a laptop that cannot hold 8 GB of weights. It has to REASON, which
-# rules out the `qwen2.5-coder:1.5b` the previous edition fell back to: a model with no
-# thinking mode turns this agent back into the Act-only one from the last workshop, and every
-# reasoning-shaped thing in the trace silently disappears. Qwen3 is the smallest thing that
-# both thinks and calls tools.
+# The tier-2 model, for a laptop that cannot hold 8 GB of weights. It has to REASON: a model
+# with no thinking mode turns this agent back into the Act-only one from the last workshop, and
+# every reasoning-shaped thing in the trace silently disappears. Qwen3 is the smallest thing
+# that both thinks and calls tools, which is also why the small tier needs only this one model
+# for the whole course.
 #
-# This is the base; `setup.py --tier qwen` pulls it and derives `agentgraph-qwen3` from it with
+# This is the base; `setup.py --tier qwen` pulls it and derives `agentfix-qwen3` from it with
 # the context window baked in, then records that name in AGENTGRAPH_MODEL.
 FALLBACK_MODEL = "qwen3:1.7b"
-FALLBACK_DERIVED_MODEL = "agentgraph-qwen3"
+FALLBACK_DERIVED_MODEL = "agentfix-qwen3"
 
 # The variable that carries the model choice for THIS edition. Deliberately not MELLUM_MODEL,
-# which the first two lessons use: those run a coding model, this one needs a thinking one, and
-# on the small tier they are not the same model. Pointing this agent at `agentfix-qwen` would
+# which the first two lessons use: those run a coding model and this one needs a thinking one,
+# and on the default tier they are different checkpoints. Reading the coding model here would
 # produce a working agent with no reasoning in it and no error anywhere — so the two kinds of
-# model get two variables, and `setup.py` writes both.
+# model get two variables, and `setup.py` writes both. On the small tier both variables name
+# `agentfix-qwen3`, because there one model does both jobs.
 MODEL_ENV_KEY = "AGENTGRAPH_MODEL"
 
 # `agentgraph doctor` fails if the loaded model reports less than this. A too-small context

@@ -86,19 +86,21 @@ you. `setup.py` does not touch your interpreter's packages; it only sets up the 
 | Tier | Best for | RAM | Disk | Models | Status |
 |---|---|---:|---:|---|---|
 | `mellum2` (default) | laptops that can comfortably run Mellum2 | 16 GB+ | ~18 GB | `agentfix-mellum2` (Instruct, 8 GB) + `agentgraph-mellum2-thinking` (Thinking, 8 GB) | reference path |
-| `qwen` | laptops that cannot hold an 8 GB model | 8–16 GB | ~4 GB | `agentfix-qwen` (`qwen2.5-coder:1.5b`) + `agentgraph-qwen3` (`qwen3:1.7b`) | local fallback |
+| `qwen` | laptops that cannot hold an 8 GB model | 8–16 GB | ~3 GB | `agentfix-qwen3` (`qwen3:1.7b`) — one model for every lesson | local fallback |
 | `colab` | Chromebooks, thin laptops, anyone who prefers a browser | under 8 GB, or any | — | Google Colab notebook — `notebooks/agentfix.ipynb` | **tested** |
 
-**Two models per tier, and the RAM number is still about one of them.** The course has two kinds
+**The default tier installs two models; the small tier installs one.** The course has two kinds
 of agent in it: the first two editions run a *coding* model, and the third runs a *thinking* one.
-So every tier installs a pair, and setup pulls both in the same run — nobody should meet an 8 GB
-download in the middle of the lesson that needs it.
+On the `mellum2` tier those are two different 8 GB checkpoints, and setup pulls both in the same
+run — nobody should meet an 8 GB download in the middle of the lesson that needs it. On the `qwen`
+tier one model does both jobs, because `qwen3:1.7b` reasons *and* calls tools, so there is a
+single pull.
 
-What that pair costs is **disk** (about 18 GB on the default tier), not RAM. The lessons run one
+What the pair costs is **disk** (about 18 GB on the default tier), not RAM. The lessons run one
 after the other, so only one model is ever needed at a time, and 16 GB is the line for holding
-*one* 8 GB model plus the OS. The exception is worth knowing: Ollama keeps the last model loaded
-for five minutes after the final request, so moving straight from lesson 3 to lesson 4 can leave
-both resident at once. One command fixes it —
+*one* 8 GB model plus the OS. The exception is worth knowing, and it only applies to the default
+tier: Ollama keeps the last model loaded for five minutes after the final request, so moving
+straight from lesson 3 to lesson 4 can leave both resident at once. One command fixes it —
 
 ```bash
 ollama stop agentfix-mellum2        # before you start the thinking lesson
@@ -144,9 +146,9 @@ and is the same code on every platform.
 4. Pulls the tier's **two** base models: the Instruct checkpoint the first two lessons run on,
    then the Thinking checkpoint the third one is about.
 5. Derives one model per checkpoint with `PARAMETER num_ctx 16384` — `agentfix-mellum2` and
-   `agentgraph-mellum2-thinking` (or `agentfix-qwen` and `agentgraph-qwen3`). Only `Modelfile`
+   `agentgraph-mellum2-thinking` (or `agentfix-qwen3` and `agentfix-qwen3`). Only `Modelfile`
    is committed to the repo; the other three are written into the course root as
-   `Modelfile.agentgraph-thinking`, `Modelfile.agentfix-qwen`, `Modelfile.agentgraph-qwen3`,
+   `Modelfile.agentgraph-thinking`, `Modelfile.agentfix-qwen3`, `Modelfile.agentfix-qwen3`,
    because `ollama create` reads them from the directory it runs in.
 6. Records the model choice: `.agentfix.env`, which `run.py` reads, plus the same variables in
    your user environment for terminals you open later — `setx` on Windows, one marked block in
@@ -154,7 +156,7 @@ and is the same code on every platform.
 
    Two variables, because the two models are different kinds: **`MELLUM_MODEL`** for the
    `agentfix` and `agentlang` lessons, **`AGENTGRAPH_MODEL`** for the thinking one. One variable
-   could not do both jobs — on the small tier `MELLUM_MODEL=agentfix-qwen` names a model with no
+   could not do both jobs — on the small tier `MELLUM_MODEL=agentfix-qwen3` names a model with no
    thinking mode, and pointing lesson 4 at it produces a working agent with no reasoning in it
    and no error anywhere. The mellum2 tier needs neither variable (both derived names already
    are those editions' defaults) and setup *removes* them, in case an earlier `--tier qwen` run
@@ -242,9 +244,9 @@ ollama create agentfix-mellum2 -f Modelfile
 Or Qwen, the fallback for machines that cannot hold an 8 GB model:
 
 ```bash
-ollama pull qwen2.5-coder:1.5b
-printf 'FROM qwen2.5-coder:1.5b\nPARAMETER num_ctx 16384\n' > Modelfile.agentfix-qwen
-ollama create agentfix-qwen -f Modelfile.agentfix-qwen
+ollama pull qwen3:1.7b
+printf 'FROM qwen3:1.7b\nPARAMETER num_ctx 16384\n' > Modelfile.agentfix-qwen3
+ollama create agentfix-qwen3 -f Modelfile.agentfix-qwen3
 ```
 
 Do not stop after the `pull`. The `create` is what carries the 16,384-token context window.
@@ -261,20 +263,20 @@ printf 'FROM hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M\nPARAMETER n
 ollama create agentgraph-mellum2-thinking -f Modelfile.agentgraph-thinking
 ```
 
-Or, on the small tier, `qwen3:1.7b` — **not** the `qwen2.5-coder` from step 4, which has no
-thinking mode at all:
+On the small tier there is nothing to do in this step: `agentfix-qwen3` from step 4 already
+reasons, so the same model serves this lesson too. For the record, that is what it would be:
 
 ```bash
 ollama pull qwen3:1.7b
-printf 'FROM qwen3:1.7b\nPARAMETER num_ctx 16384\n' > Modelfile.agentgraph-qwen3
-ollama create agentgraph-qwen3 -f Modelfile.agentgraph-qwen3
+printf 'FROM qwen3:1.7b\nPARAMETER num_ctx 16384\n' > Modelfile.agentfix-qwen3
+ollama create agentfix-qwen3 -f Modelfile.agentfix-qwen3
 ```
 
 **6. Only on the Qwen tier — say which models to use**
 
 ```bash
-printf 'MELLUM_MODEL=agentfix-qwen\nAGENTGRAPH_MODEL=agentgraph-qwen3\n' > .agentfix.env
-export MELLUM_MODEL=agentfix-qwen AGENTGRAPH_MODEL=agentgraph-qwen3   # this terminal only
+printf 'MELLUM_MODEL=agentfix-qwen3\nAGENTGRAPH_MODEL=agentfix-qwen3\n' > .agentfix.env
+export MELLUM_MODEL=agentfix-qwen3 AGENTGRAPH_MODEL=agentfix-qwen3   # this terminal only
 ```
 
 `.agentfix.env` in the course root is what `run.py` reads, which is why setup writes it: an
@@ -357,9 +359,9 @@ ollama create agentfix-mellum2 -f Modelfile
 Or Qwen, the fallback:
 
 ```bash
-ollama pull qwen2.5-coder:1.5b
-printf 'FROM qwen2.5-coder:1.5b\nPARAMETER num_ctx 16384\n' > Modelfile.agentfix-qwen
-ollama create agentfix-qwen -f Modelfile.agentfix-qwen
+ollama pull qwen3:1.7b
+printf 'FROM qwen3:1.7b\nPARAMETER num_ctx 16384\n' > Modelfile.agentfix-qwen3
+ollama create agentfix-qwen3 -f Modelfile.agentfix-qwen3
 ```
 
 Do not stop after the `pull`. The `create` is what carries the 16,384-token context window.
@@ -376,20 +378,20 @@ printf 'FROM hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M\nPARAMETER n
 ollama create agentgraph-mellum2-thinking -f Modelfile.agentgraph-thinking
 ```
 
-Or, on the small tier, `qwen3:1.7b` — **not** the `qwen2.5-coder` from step 4, which has no
-thinking mode at all:
+On the small tier there is nothing to do in this step: `agentfix-qwen3` from step 4 already
+reasons, so the same model serves this lesson too. For the record, that is what it would be:
 
 ```bash
 ollama pull qwen3:1.7b
-printf 'FROM qwen3:1.7b\nPARAMETER num_ctx 16384\n' > Modelfile.agentgraph-qwen3
-ollama create agentgraph-qwen3 -f Modelfile.agentgraph-qwen3
+printf 'FROM qwen3:1.7b\nPARAMETER num_ctx 16384\n' > Modelfile.agentfix-qwen3
+ollama create agentfix-qwen3 -f Modelfile.agentfix-qwen3
 ```
 
 **6. Only on the Qwen tier — say which models to use**
 
 ```bash
-printf 'MELLUM_MODEL=agentfix-qwen\nAGENTGRAPH_MODEL=agentgraph-qwen3\n' > .agentfix.env
-export MELLUM_MODEL=agentfix-qwen AGENTGRAPH_MODEL=agentgraph-qwen3   # this terminal only
+printf 'MELLUM_MODEL=agentfix-qwen3\nAGENTGRAPH_MODEL=agentfix-qwen3\n' > .agentfix.env
+export MELLUM_MODEL=agentfix-qwen3 AGENTGRAPH_MODEL=agentfix-qwen3   # this terminal only
 ```
 
 `.agentfix.env` in the course root is what `run.py` reads, which is why setup writes it: an
@@ -436,7 +438,7 @@ sandbox that runs the agent's tests works properly there.
 wsl --install -d Ubuntu
 ```
 
-**2. Do everything else inside the Ubuntu shell** — Ollama, both models, the exercises — following
+**2. Do everything else inside the Ubuntu shell** — Ollama, your tier's models, the exercises — following
 the **Linux, WSL2 and ChromeOS** block above, including its RAM note at the end.
 
 Keep the course on the Linux filesystem (`~/agentfix-workshop`, not `/mnt/c/...`). Test discovery
@@ -484,9 +486,9 @@ Or Qwen, the fallback. Every generated Modelfile goes in the course root, becaus
 has no `/tmp`:
 
 ```powershell
-ollama pull qwen2.5-coder:1.5b
-Set-Content Modelfile.agentfix-qwen @('FROM qwen2.5-coder:1.5b', 'PARAMETER num_ctx 16384')
-ollama create agentfix-qwen -f Modelfile.agentfix-qwen
+ollama pull qwen3:1.7b
+Set-Content Modelfile.agentfix-qwen3 @('FROM qwen3:1.7b', 'PARAMETER num_ctx 16384')
+ollama create agentfix-qwen3 -f Modelfile.agentfix-qwen3
 ```
 
 Do not stop after the `pull`. The `create` is what carries the 16,384-token context window.
@@ -503,31 +505,31 @@ Set-Content Modelfile.agentgraph-thinking @(
 ollama create agentgraph-mellum2-thinking -f Modelfile.agentgraph-thinking
 ```
 
-Or, on the small tier, `qwen3:1.7b` — **not** the `qwen2.5-coder` from step 4, which has no
-thinking mode at all:
+On the small tier there is nothing to do in this step: `agentfix-qwen3` from step 4 already
+reasons, so the same model serves this lesson too. For the record, that is what it would be:
 
 ```powershell
 ollama pull qwen3:1.7b
-Set-Content Modelfile.agentgraph-qwen3 @('FROM qwen3:1.7b', 'PARAMETER num_ctx 16384')
-ollama create agentgraph-qwen3 -f Modelfile.agentgraph-qwen3
+Set-Content Modelfile.agentfix-qwen3 @('FROM qwen3:1.7b', 'PARAMETER num_ctx 16384')
+ollama create agentfix-qwen3 -f Modelfile.agentfix-qwen3
 ```
 
 **6. Only on the Qwen tier — say which models to use**
 
 ```powershell
-Set-Content .agentfix.env @('MELLUM_MODEL=agentfix-qwen', 'AGENTGRAPH_MODEL=agentgraph-qwen3')
+Set-Content .agentfix.env @('MELLUM_MODEL=agentfix-qwen3', 'AGENTGRAPH_MODEL=agentfix-qwen3')
 
-$env:MELLUM_MODEL = 'agentfix-qwen'                        # this terminal only
-$env:AGENTGRAPH_MODEL = 'agentgraph-qwen3'
-setx MELLUM_MODEL agentfix-qwen                            # future terminals, user-wide
-setx AGENTGRAPH_MODEL agentgraph-qwen3
+$env:MELLUM_MODEL = 'agentfix-qwen3'                        # this terminal only
+$env:AGENTGRAPH_MODEL = 'agentfix-qwen3'
+setx MELLUM_MODEL agentfix-qwen3                            # future terminals, user-wide
+setx AGENTGRAPH_MODEL agentfix-qwen3
 ```
 
 `.agentfix.env` in the course root is what `run.py` reads, which is why setup writes it. Two
 variables, because the two models are different kinds — `MELLUM_MODEL` for the coding lessons,
 `AGENTGRAPH_MODEL` for the thinking one. `$env:` lasts for that one session
 (`Remove-Item Env:\MELLUM_MODEL` clears it; in `cmd.exe` the equivalents are
-`set MELLUM_MODEL=agentfix-qwen` and `set MELLUM_MODEL=`). `setx` persists, but **only for
+`set MELLUM_MODEL=agentfix-qwen3` and `set MELLUM_MODEL=`). `setx` persists, but **only for
 processes started afterwards** — close and reopen PyCharm and your terminals, or they will keep the
 environment they were launched with. The default Mellum2 tier needs none of this.
 
@@ -549,7 +551,7 @@ expect more steps, or a task it cannot fix. Good enough to see the loop work; no
 ### The Colab tier
 
 `notebooks/agentfix.ipynb` is the browser path, and it does **one thing**: it runs the three
-finished agents against a real model. Ollama, both models and all three repositories live in the
+finished agents against a real model. Ollama, the model and all three repositories live in the
 Colab runtime rather than on the learner's laptop.
 
 It is not a course substitute, and it does not try to be. The lessons — reading the code, writing
@@ -604,10 +606,10 @@ ollama create agentgraph-mellum2-thinking -f Modelfile
 Run that from the **What about thinking?** lesson's directory so it picks up that lesson's own
 `Modelfile` — the one carrying `PARAMETER num_ctx 16384` for the Thinking model. (From the course
 root, use the `Modelfile.agentgraph-thinking` setup writes there instead.) On the small tier the
-equivalent is `agentgraph-qwen3`, derived from `qwen3:1.7b`: the smallest thing that both thinks
-and calls tools. The `qwen2.5-coder:1.5b` fallback used by the other lessons has no thinking mode
-at all, so it cannot stand in here — which is why the tier records it in its own variable,
-`AGENTGRAPH_MODEL`, rather than reusing `MELLUM_MODEL`.
+equivalent is `agentfix-qwen3`, derived from `qwen3:1.7b`: the smallest thing that both thinks
+and calls tools, which is why that one model covers every lesson there. The tier still sets
+`AGENTGRAPH_MODEL` as well as `MELLUM_MODEL` — the two variables stay separate because on the
+default tier they name different models.
 
 ### What `doctor` reports
 

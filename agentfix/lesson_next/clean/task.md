@@ -17,18 +17,19 @@ ends. Delete the notebook copy from your Drive if Colab saved one there, and you
 |---|---|---|---|
 | `agentfix-mellum2` + its base model | `mellum2` tier | Ollama's model store | ~8 GB |
 | `agentgraph-mellum2-thinking` + its base model | `mellum2` tier | Ollama's model store | ~8 GB |
-| `agentfix-qwen` + `qwen2.5-coder:1.5b` | `qwen` tier | Ollama's model store | ~1 GB |
-| `agentgraph-qwen3` + `qwen3:1.7b` | `qwen` tier | Ollama's model store | ~1.4 GB |
+| `agentfix-qwen3` + `qwen3:1.7b` | `qwen` tier | Ollama's model store | ~1.4 GB |
 | `MELLUM_MODEL` and `AGENTGRAPH_MODEL` in your shell profile | `qwen` tier only | `~/.zshrc`, `~/.bashrc`, or the Windows user environment | — |
 | `.agentfix.env` | `qwen` tier only | course root | bytes |
 | `Modelfile.agentgraph-thinking` | `mellum2` tier | course root | bytes |
-| `Modelfile.agentfix-qwen`, `Modelfile.agentgraph-qwen3` | `qwen` tier only | course root | bytes |
+| `Modelfile.agentfix-qwen3`, `Modelfile.agentfix-qwen3` | `qwen` tier only | course root | bytes |
 | Ollama | any tier, if setup installed it | per OS, see below | a few hundred MB |
 | `agentfix-sandbox` and `agentgraph-sandbox` Docker images | only if you built them | Docker | a few hundred MB each |
 | A uv-installed Python 3.12 | any tier, only where your package manager had none | `~/.local/share/uv` | ~50 MB |
 
-Two models per tier, because the course has two kinds of agent in it: lessons 2 and 3 run a coding
-model, lesson 4 runs a thinking one. Both are on disk regardless of which lessons you finished.
+The course has two kinds of agent in it: lessons 2 and 3 run a coding model, lesson 4 runs a
+thinking one. On the `mellum2` tier those are two separate models, both on disk regardless of
+which lessons you finished. On the `qwen` tier there is one model for all three, because qwen3
+both reasons and calls tools.
 
 Open your operating system below. Each block is the complete sequence, in the reverse of the order
 setup did it, and every step says which tier created the thing it removes — skip the steps that do
@@ -52,11 +53,10 @@ ollama rm agentgraph-mellum2-thinking hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking
 
 ```bash
 # qwen tier
-ollama rm agentfix-qwen qwen2.5-coder:1.5b
-ollama rm agentgraph-qwen3 qwen3:1.7b
+ollama rm agentfix-qwen3 qwen3:1.7b
 ```
 
-Remove the derived model **and** the base model it was built from, for both. The base models are
+Remove the derived model **and** the base model it was built from. The base models are
 the multi-gigabyte downloads; deleting only the derived ones frees almost nothing. The two Mellum2
 checkpoints are separate 8 GB downloads that share no blobs, so removing one does not shrink the
 other.
@@ -68,8 +68,8 @@ Open that file and delete the four lines:
 
 ```bash
 # >>> agentfix setup >>>
-export MELLUM_MODEL=agentfix-qwen
-export AGENTGRAPH_MODEL=agentgraph-qwen3
+export MELLUM_MODEL=agentfix-qwen3
+export AGENTGRAPH_MODEL=agentfix-qwen3
 # <<< agentfix setup <<<
 ```
 
@@ -85,7 +85,7 @@ both `echo` commands printing empty lines confirms it.
 **3. Delete the files setup wrote in the course root**
 
 ```bash
-rm -f .agentfix.env Modelfile.agentgraph-thinking Modelfile.agentfix-qwen Modelfile.agentgraph-qwen3
+rm -f .agentfix.env Modelfile.agentgraph-thinking Modelfile.agentfix-qwen3 Modelfile.agentfix-qwen3
 ```
 
 Do **not** delete `Modelfile` — that one ships with the course. Only the `Modelfile.*` files were
@@ -157,8 +157,7 @@ ollama rm agentgraph-mellum2-thinking hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking
 
 ```bash
 # qwen tier
-ollama rm agentfix-qwen qwen2.5-coder:1.5b
-ollama rm agentgraph-qwen3 qwen3:1.7b
+ollama rm agentfix-qwen3 qwen3:1.7b
 ```
 
 Remove the derived model **and** the base model it was built from, for both. The base models are
@@ -171,8 +170,8 @@ Open that file and delete the four lines:
 
 ```bash
 # >>> agentfix setup >>>
-export MELLUM_MODEL=agentfix-qwen
-export AGENTGRAPH_MODEL=agentgraph-qwen3
+export MELLUM_MODEL=agentfix-qwen3
+export AGENTGRAPH_MODEL=agentfix-qwen3
 # <<< agentfix setup <<<
 ```
 
@@ -187,7 +186,7 @@ On the `mellum2` tier setup removed that block instead of writing it, so there i
 **3. Delete the files setup wrote in the course root**
 
 ```bash
-rm -f .agentfix.env Modelfile.agentgraph-thinking Modelfile.agentfix-qwen Modelfile.agentgraph-qwen3
+rm -f .agentfix.env Modelfile.agentgraph-thinking Modelfile.agentfix-qwen3 Modelfile.agentfix-qwen3
 ```
 
 Do **not** delete `Modelfile` — that one ships with the course.
@@ -259,7 +258,7 @@ memory=16GB
 
 Then `wsl --shutdown`.
 
-**3. Or remove the whole Ubuntu installation** — the blunt version, which takes both models, Ollama
+**3. Or remove the whole Ubuntu installation** — the blunt version, which takes the models, Ollama
 and the clones with it in one command. Only if you installed Ubuntu for this course and have
 nothing else in it:
 
@@ -289,8 +288,7 @@ ollama rm agentgraph-mellum2-thinking hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking
 
 ```powershell
 # qwen tier
-ollama rm agentfix-qwen qwen2.5-coder:1.5b
-ollama rm agentgraph-qwen3 qwen3:1.7b
+ollama rm agentfix-qwen3 qwen3:1.7b
 ```
 
 Remove the derived model **and** the base model it was built from, for both.
@@ -319,7 +317,7 @@ Remove-Item Env:\MELLUM_MODEL, Env:\AGENTGRAPH_MODEL -ErrorAction Ignore
 **3. Delete the files setup wrote in the course root**
 
 ```powershell
-Remove-Item -Force -ErrorAction Ignore .agentfix.env, Modelfile.agentgraph-thinking, Modelfile.agentfix-qwen, Modelfile.agentgraph-qwen3
+Remove-Item -Force -ErrorAction Ignore .agentfix.env, Modelfile.agentgraph-thinking, Modelfile.agentfix-qwen3, Modelfile.agentfix-qwen3
 ```
 
 Do **not** delete `Modelfile` — that one ships with the course.

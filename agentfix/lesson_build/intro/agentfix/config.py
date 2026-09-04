@@ -49,7 +49,7 @@ class LLMConfig:
 
     # Cap on ONE reply. Relevant because write_file must emit a complete file: this is the
     # ceiling on how large a file the agent can rewrite in a single turn.
-    max_tokens: int = 1024
+    max_tokens: int = 4096
 
     # Sent with every request, but Ollama's /v1 endpoint ignores it — see llm/client.py.
     num_ctx: int = 16384

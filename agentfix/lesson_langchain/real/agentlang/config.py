@@ -45,7 +45,7 @@ class LLMConfig:
     # Cap on ONE reply. Relevant because write_file must emit a complete file: this is the
     # ceiling on how large a file the agent can rewrite in a single turn. Reaches the server as
     # Ollama's `num_predict`.
-    max_tokens: int = 1024
+    max_tokens: int = 4096
 
     # The context window the model is loaded with. Honoured now that the client speaks Ollama's
     # native API, which is why `agentlang doctor` can check it and expect to be obeyed.

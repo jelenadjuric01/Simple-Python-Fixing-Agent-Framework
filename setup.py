@@ -64,18 +64,18 @@ ROOT = Path(__file__).resolve().parent
 MELLUM_BASE_MODEL = "hf.co/JetBrains/Mellum2-12B-A2.5B-Instruct-GGUF-Q4_K_M"
 MELLUM_THINKING_BASE_MODEL = "hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M"
 
-# The small tier needs the same pair for the same reason, and it cannot be one model twice:
-# `qwen2.5-coder:1.5b` has no thinking mode at all, so `agentgraph` gets qwen3 — the smallest
-# thing that both reasons and calls tools.
-QWEN_BASE_MODEL = "qwen2.5-coder:1.5b"
-QWEN3_BASE_MODEL = "qwen3:1.7b"
+# The small tier needs only one model, because qwen3 both reasons and calls tools: the same
+# checkpoint can be the coding model for the first two editions and the thinking model for the
+# third. That is why this tier is a single pull rather than a pair.
+QWEN_BASE_MODEL = "qwen3:1.7b"
 
 MIN_CONTEXT_LENGTH = 16384
 
 # The variables the editions read to override their default model. `agentfix` and `agentlang`
-# share MELLUM_MODEL; `agentgraph` reads AGENTGRAPH_MODEL first, because a single variable
-# cannot name both a coding model and a thinking one — pointing MELLUM_MODEL at the small
-# tier's `agentfix-qwen` would silently take the reasoning out of the third lesson.
+# share MELLUM_MODEL; `agentgraph` reads AGENTGRAPH_MODEL first. Two variables rather than one
+# because on the default tier they name different checkpoints — a coding model and a thinking
+# one — and a single variable could not carry both. On the small tier they happen to name the
+# same model, which is why that tier writes the same value to both.
 INSTRUCT_ENV_KEY = "MELLUM_MODEL"
 THINKING_ENV_KEY = "AGENTGRAPH_MODEL"
 ENV_KEYS = (INSTRUCT_ENV_KEY, THINKING_ENV_KEY)
@@ -111,12 +111,11 @@ SERVER_ENV = {"OLLAMA_MAX_LOADED_MODELS": "1"}
 
 ENV_FILE = ROOT / ".agentfix.env"
 # `Modelfile` is the one committed to the repo (and shown to learners as course content); the
-# other three are generated, because `ollama create` runs with the course root as its working
+# other two are generated, because `ollama create` runs with the course root as its working
 # directory and every derived model needs its own file there.
 MELLUM_MODELFILE = ROOT / "Modelfile"
 MELLUM_THINKING_MODELFILE = ROOT / "Modelfile.agentgraph-thinking"
-QWEN_MODELFILE = ROOT / "Modelfile.agentfix-qwen"
-QWEN3_MODELFILE = ROOT / "Modelfile.agentgraph-qwen3"
+QWEN_MODELFILE = ROOT / "Modelfile.agentfix-qwen3"
 NOTEBOOK = "notebooks/agentfix.ipynb"
 
 PYTHON_ORG = "https://www.python.org/downloads/"
@@ -199,7 +198,10 @@ class Model:
     generate_modelfile: bool
     download: str  # the size, in the words the step uses to warn about it
     disk_bytes: int  # what the pull costs on disk, for the free-space note
-    env_key: str  # the variable the editions using this model read
+    # The variables the editions using this model read. Plural because a tier can cover the
+    # whole course with one model: qwen3 both writes code and reasons, so on the small tier the
+    # same model answers to `MELLUM_MODEL` and `AGENTGRAPH_MODEL`.
+    env_keys: Tuple[str, ...]
     # The value those editions need, or None when `derived` already is their config.DEFAULT_MODEL
     # and no override is required.
     env_value: Optional[str]
@@ -221,9 +223,10 @@ class Tier:
     def env(self) -> Dict[str, str]:
         """The model overrides this tier needs — one entry per edition that is not on default."""
         return dict(
-            (model.env_key, model.env_value)
+            (key, model.env_value)
             for model in self.models
             if model.env_value is not None
+            for key in model.env_keys
         )
 
     @property
@@ -257,7 +260,7 @@ MELLUM2 = Tier(
             generate_modelfile=False,
             download="about 8 GB",
             disk_bytes=8_700_000_000,
-            env_key=INSTRUCT_ENV_KEY,
+            env_keys=(INSTRUCT_ENV_KEY,),
             env_value=None,
         ),
         Model(
@@ -269,38 +272,29 @@ MELLUM2 = Tier(
             generate_modelfile=True,
             download="another 8 GB",
             disk_bytes=8_700_000_000,
-            env_key=THINKING_ENV_KEY,
+            env_keys=(THINKING_ENV_KEY,),
             env_value=None,
         ),
     ),
 )
 
+# One model, not a pair. qwen3 reasons *and* calls tools, so it can stand in for both halves
+# of the course: the first two editions get a model that writes code, and the third gets one
+# that thinks first. That is why this tier is a single pull.
 QWEN = Tier(
     name="qwen",
     models=(
         Model(
-            kind="instruct",
-            editions="agentfix and agentlang",
-            base=QWEN_BASE_MODEL,
-            derived="agentfix-qwen",
-            modelfile=QWEN_MODELFILE,
-            generate_modelfile=True,
-            download="about 1 GB",
-            disk_bytes=1_000_000_000,
-            env_key=INSTRUCT_ENV_KEY,
-            env_value="agentfix-qwen",
-        ),
-        Model(
             kind="thinking",
-            editions="agentgraph",
-            base=QWEN3_BASE_MODEL,
-            derived="agentgraph-qwen3",
-            modelfile=QWEN3_MODELFILE,
+            editions="agentfix, agentlang and agentgraph",
+            base=QWEN_BASE_MODEL,
+            derived="agentfix-qwen3",
+            modelfile=QWEN_MODELFILE,
             generate_modelfile=True,
             download="about 1.4 GB",
             disk_bytes=1_500_000_000,
-            env_key=THINKING_ENV_KEY,
-            env_value="agentgraph-qwen3",
+            env_keys=(INSTRUCT_ENV_KEY, THINKING_ENV_KEY),
+            env_value="agentfix-qwen3",
         ),
     ),
 )
@@ -446,7 +440,7 @@ def has_model(names: Sequence[str], wanted: str) -> bool:
     """Is `wanted` one of these models?
 
     Ollama always reports a tag, and adds `:latest` to anything pulled without one. So
-    `agentfix-qwen` matches `agentfix-qwen:latest`, while `qwen2.5-coder:1.5b` — where the tag
+    `agentfix-qwen3` matches `agentfix-qwen3:latest`, while `qwen3:1.7b` — where the tag
     is the whole point — has to match exactly. Case is preserved by the server, checked against
     a real `/api/tags` response, so `hf.co/JetBrains/...` compares as written.
     """
@@ -888,6 +882,11 @@ def base_model_step(model: Model, opts: Options) -> Step:
     )
 
 
+def plural_models(count: int) -> str:
+    """"1 model" / "2 models". The small tier is a single pull, so this cannot be hardcoded."""
+    return "1 model" if count == 1 else "%d models" % count
+
+
 def modelfile_text(base: str) -> str:
     """A Modelfile whose only job is to carry the context window."""
     return (
@@ -1220,7 +1219,7 @@ def model_choice_step(tier: Tier, plat: Platform, opts: Options) -> Step:
             return False, "could not edit %s: %s" % (profile, error)
         return True, "updated %s" % profile
 
-    return Step("model choice", probe, "Make the tier's models the ones the workshop uses.",
+    return Step("model choice", probe, "Point the editions at the tier's model(s).",
                 preview, apply)
 
 
@@ -1347,11 +1346,11 @@ def print_disk_note(tier: Tier) -> None:
     free = free_bytes(where)
     gigabytes = needed / 1024 ** 3
     if free is None:
-        print("  disk: %d models, about %.0f GB in %s — check you have room."
-              % (len(tier.models), gigabytes, where))
+        print("  disk: %s, about %.0f GB in %s — check you have room."
+              % (plural_models(len(tier.models)), gigabytes, where))
         return
-    print("  disk: %d models, about %.0f GB in %s (%.1f GB free)."
-          % (len(tier.models), gigabytes, where, free / 1024 ** 3))
+    print("  disk: %s, about %.0f GB in %s (%.1f GB free)."
+          % (plural_models(len(tier.models)), gigabytes, where, free / 1024 ** 3))
     if free < needed:
         print("  ! that is less than the pulls need, and Ollama fails part-way through a pull")
         print("    rather than up front. Free some space, or use --tier qwen (about %.0f GB)."
@@ -1477,7 +1476,8 @@ def main(argv: Sequence[str]) -> int:
         print("\nIf you want to try a local model on this machine anyway:")
         print("  %s setup.py --tier qwen" % python_invocation())
         return 0
-    print("  tier: %s -> models %s" % (tier.name, tier.derived_names))
+    print("  tier: %s -> %s %s" % (tier.name, plural_models(len(tier.models)).split()[1],
+                                  tier.derived_names))
     print_disk_note(tier)
     print()
 

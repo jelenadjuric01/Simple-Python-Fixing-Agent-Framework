@@ -134,7 +134,7 @@ so the default tier downloads about 16 GB of weights. Ollama does not check free
 writes the blob, then the manifest, and fails somewhere in between. Setup prints the estimate and
 your free space before it starts, which is the number to read.
 
-Either free the space, or take the small tier, which needs about 4 GB in total:
+Either free the space, or take the small tier, which needs about 3 GB in total:
 
 ```bash
 ./setup.sh --tier qwen
@@ -155,8 +155,9 @@ ollama create agentfix-mellum2 -f Modelfile                                   # 
 ollama create agentgraph-mellum2-thinking -f Modelfile.agentgraph-thinking    # lesson 4
 ```
 
-On the `qwen` tier the names are `agentfix-qwen` and `agentgraph-qwen3`, with the matching
-`Modelfile.*` setup wrote into the course root. Re-running `./setup.sh` does all of this for you.
+On the `qwen` tier there is one name, `agentfix-qwen3`, with the matching `Modelfile` setup wrote
+into the course root — that tier's single model serves every lesson. Re-running `./setup.sh` does
+all of this for you.
 
 Do not skip it. At 4,096 tokens Ollama drops the *earliest* messages once the conversation grows
 past the limit — and the earliest message is the system prompt telling the agent it is not done
@@ -183,8 +184,9 @@ not both at once.
 <details>
 <summary><b>Everything was fine, and then lesson 4 made the machine crawl</b></summary>
 
-Two 8 GB models resident at once. The lessons use one model at a time, but Ollama keeps the last
-one loaded for **five minutes** after the final request — so moving straight from lesson 3 to
+Two 8 GB models resident at once, which only happens on the `mellum2` tier — the `qwen` tier has
+a single model and cannot hit this. The lessons use one model at a time, but Ollama keeps the last
+one loaded for **five minutes** after the final request, so moving straight from lesson 3 to
 lesson 4 on a 16 GB laptop can put both in memory together. That is the one case where the pair
 costs RAM rather than only disk.
 
@@ -268,8 +270,6 @@ Its `reasoning` and `tool calling` checks exist for precisely this. What usually
 
 - `MELLUM_MODEL` set by hand to a coding model. Lesson 4 reads **`AGENTGRAPH_MODEL`** first and
   only falls back to `MELLUM_MODEL`, so an override left over from an earlier tier can capture it.
-- On the `qwen` tier, `agentfix-qwen` (`qwen2.5-coder:1.5b`) has no thinking mode at all. Lesson 4
-  needs `agentgraph-qwen3`.
 - The `reasoning` check failing with *"the reasoning arrived INLINE"* is a different thing: the
   model does think, but the client asked for it the wrong way. That is a `reasoning=True` /
   native-API question, not a model choice — see the lesson's `llm/client.py`.

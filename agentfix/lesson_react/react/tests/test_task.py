@@ -1509,19 +1509,23 @@ class TestLLMConfig(unittest.TestCase):
     def test_this_edition_has_its_own_model_variable(self):
         """The failure this prevents is a silent one.
 
-        `setup.py --tier qwen` records two models: a coding one in MELLUM_MODEL and a thinking
-        one in AGENTGRAPH_MODEL. If this edition read MELLUM_MODEL first it would run on
-        `agentfix-qwen`, which has no thinking mode — a working agent that has quietly become
-        the Act-only one from the previous lesson.
+        `setup.py --tier mellum2` records two models: a coding one in MELLUM_MODEL and a
+        thinking one in AGENTGRAPH_MODEL. If this edition read MELLUM_MODEL first it would run
+        on the coding model, which has no thinking mode — a working agent that has quietly
+        become the Act-only one from the previous lesson. So the two must not be interchangeable,
+        and AGENTGRAPH_MODEL has to win when both are set.
         """
         import os
         from unittest import mock
 
         with mock.patch.dict(
             os.environ,
-            {"MELLUM_MODEL": "agentfix-qwen", "AGENTGRAPH_MODEL": "agentgraph-qwen3"},
+            {
+                "MELLUM_MODEL": "agentfix-mellum2",
+                "AGENTGRAPH_MODEL": "agentgraph-mellum2-thinking",
+            },
         ):
-            self.assertEqual(LLMConfig.from_env().model, "agentgraph-qwen3")
+            self.assertEqual(LLMConfig.from_env().model, "agentgraph-mellum2-thinking")
 
         # ... and MELLUM_MODEL still works on its own, for a hand-built model.
         with mock.patch.dict(os.environ, {"MELLUM_MODEL": "my-own-thinking-build"}, clear=True):

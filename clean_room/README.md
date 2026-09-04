@@ -33,8 +33,8 @@ that a machine with no Python at all can be set up, and handing it a `python3` w
 thing most worth testing. Leaving `curl` and `zstd` out is likewise how their absence was found.
 
 **It writes into your working copy.** The repo is bind-mounted, so a real (non-dry) run leaves
-`.agentfix.env` and `Modelfile.agentfix-qwen` behind in the course root, created by root. Both
-are gitignored, and `rm -f .agentfix.env Modelfile.agentfix-qwen` clears them.
+`.agentfix.env` and `Modelfile.agentfix-qwen3` behind in the course root, created by root. Both
+are gitignored, and `rm -f .agentfix.env Modelfile.agentfix-qwen3` clears them.
 
 RAM is faked by bind-mounting a file over `/proc/meminfo`, because that is what `setup.py`
 reads. `docker run --memory=3g` would **not** work: inside a container `/proc/meminfo` still
