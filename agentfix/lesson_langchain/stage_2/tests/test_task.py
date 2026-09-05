@@ -1356,7 +1356,11 @@ class TestLLMConfig(unittest.TestCase):
         import os
         from unittest import mock
 
-        with mock.patch.dict(os.environ, {"MELLUM_BASE_URL": "http://x/v1", "MELLUM_MODEL": "m"}):
+        with mock.patch.dict(
+            os.environ,
+            {"MELLUM_BASE_URL": "http://x/v1", "MELLUM_MODEL": "m"},
+            clear=True,
+        ):
             config = LLMConfig.from_env()
         self.assertEqual(config.base_url, "http://x/v1")
         self.assertEqual(config.model, "m")
@@ -1399,7 +1403,7 @@ class TestMakeChatModel(unittest.TestCase):
         self.assertNotIn("sk-real-secret", repr(model))
 
     def test_env_configuration_is_picked_up_when_no_config_is_passed(self):
-        with mock.patch.dict(os.environ, {"MELLUM_MODEL": "other-model"}):
+        with mock.patch.dict(os.environ, {"MELLUM_MODEL": "other-model"}, clear=True):
             self.assertEqual(make_chat_model().model, "other-model")
 
 
