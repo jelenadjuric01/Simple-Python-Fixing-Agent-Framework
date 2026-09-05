@@ -91,6 +91,11 @@ note, a guarded run looks like a model that mysteriously stopped making calls.
 
 </div>
 
+<div class="hint" title="What should Tracer have as a detail?">
+
+It should have f"guarded — identical call #{hits + 1} in a row". 
+</div>
+
 <div class="hint" title="Last resort — the shape">
 
 Inside the loop, before the call is queued:

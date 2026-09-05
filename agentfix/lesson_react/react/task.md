@@ -53,7 +53,7 @@ Open `agentgraph/agent/graph.py`. There are four `TODO` markers.
 | 1 | `acted()` | what counts as a turn that *did* something |
 | 2 | `agent_node`'s returned state | keeping `idle_turns` current |
 | 3 | `nudge_node` | which of the two corrections to send |
-| 4 | `route_after_agent` | the answers for a turn that acted on nothing |
+
 
 They are one decision split four ways: **reasoning is not an action**, and an agent has to be
 able to tell the difference.
@@ -93,41 +93,6 @@ acted; the open question is whether it *thought*.
 
 </div>
 
-<div class="hint" title="4 — the order of the answers is the decision">
 
-Four answers, and getting them in the wrong order is a real bug rather than a style point. Two
-that are easy to get backwards:
-
-- **The verdict goes first.** A thinking turn on a suite that is already green is a *successful*
-  finish, not a stall. Check `is_done` before you check anything about idling, or the agent will
-  abandon runs it had already solved.
-- **The budget outranks the guard.** A model out of steps stops for that reason; the guard is for
-  a model that still has budget and is wasting it.
-
-</div>
-
-<div class="hint" title="4 — the thinking guard should say so">
-
-Nothing else in the run records this. A tool call produces a trace line because a tool ran; a run
-abandoned for idling produces nothing at all unless you write it, and a trace that just stops
-looks like a crash.
-
-`tracer.note("llm", "assistant", ...)` is the same mechanism you used for the action guard. Word
-it from what you actually observed — "no tool call" — rather than "turns of reasoning": a turn can
-ask for nothing without having reasoned, and a trace line that claims deliberation that never
-happened is the exact failure this edition exists to fix.
-
-</div>
-
-<div class="hint" title="Last resort — TODO 4 in words">
-
-For a turn that acted on nothing:
-
-- tests pass → `END`
-- out of steps → `END`
-- `idle_turns` has reached `MAX_IDLE_TURNS` → write the trace note, then `END`
-- otherwise → `"nudge"`
-
-</div>
 
 Press **Check** when you are done.

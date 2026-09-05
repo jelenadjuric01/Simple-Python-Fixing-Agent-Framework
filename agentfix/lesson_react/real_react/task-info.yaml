@@ -97,16 +97,6 @@ files:
           file: agentgraph/agent/graph.py
           placeholder: 3
         is_visible: false
-      - offset: 27453
-        length: 1505
-        placeholder_text: "# TODO"
-        dependency:
-          section: agentfix
-          lesson: lesson_react
-          task: react
-          file: agentgraph/agent/graph.py
-          placeholder: 4
-        is_visible: false
   - name: agentgraph/agent/state.py
     visible: true
     editable: false

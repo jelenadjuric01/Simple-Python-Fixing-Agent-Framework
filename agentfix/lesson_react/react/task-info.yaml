@@ -75,16 +75,13 @@ files:
     placeholders:
       - offset: 13967
         length: 31
-        placeholder_text: "# TODO: EXERCISE(stage-1)"
+        placeholder_text: "# TODO: Exercise 1 - first"
       - offset: 20238
         length: 370
-        placeholder_text: "# TODO: Exercise 1"
+        placeholder_text: "# TODO: Exercise 1 - second"
       - offset: 25833
         length: 63
-        placeholder_text: "# TODO: Exercise 1"
-      - offset: 27453
-        length: 1505
-        placeholder_text: "# TODO: Exercise 1"
+        placeholder_text: "# TODO: Exercise 1 - third"
   - name: agentgraph/agent/state.py
     visible: true
     editable: false
