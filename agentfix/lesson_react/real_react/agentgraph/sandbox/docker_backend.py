@@ -65,8 +65,9 @@ class DockerBackend:
             "--env",
             "PYTHONDONTWRITEBYTECODE=1",
             "--volume",
-            # the filesystem tools write on the HOST, so the container never needs to
-            f"{workspace}:/work:ro",
+            # the filesystem tools write on the HOST, so the container never needs to.
+            # as_posix() keeps the mount spec forward-slashed on Windows hosts too.
+            f"{workspace.as_posix()}:/work:ro",
             "--workdir",
             "/work",
             self.image,

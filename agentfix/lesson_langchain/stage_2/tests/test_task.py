@@ -1545,7 +1545,11 @@ class TestResolveInRoot(TempDirTestCase):
         """String comparison would miss this; `.resolve()` is what catches it."""
         outside = self.tmp.parent / "outside_target"
         outside.mkdir(exist_ok=True)
-        (self.tmp / "link").symlink_to(outside)
+        try:
+            (self.tmp / "link").symlink_to(outside)
+        except OSError:
+            # Windows refuses symlinks unless the account holds SeCreateSymbolicLinkPrivilege.
+            self.skipTest("creating symlinks is not permitted on this machine")
         with self.assertRaises(PathEscapeError):
             resolve_in_root(self.tmp, "link/secret.py")
 
