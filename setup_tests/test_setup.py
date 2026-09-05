@@ -19,6 +19,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from typing import Optional
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -883,6 +884,51 @@ class TestOllamaInstallerPrerequisites(unittest.TestCase):
         finally:
             setup.run_command = original
         self.assertEqual(ran, ["curl -fsSL https://ollama.com/install.sh | sh"])
+
+    def test_windows_finds_ollama_where_the_installer_just_put_it(self) -> None:
+        """A winget install adds Ollama's directory to the PATH of FUTURE processes, so the
+        re-probe in this one cannot see it and would report a working step as failed. Worse
+        than the wrong verdict: every later step shells out to `ollama`, so setup has to fix
+        the PATH it is running with rather than only answer the probe.
+        """
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp, "Programs", "Ollama")
+            directory.mkdir(parents=True)
+            (directory / "ollama.exe").write_text("")
+
+            before = os.environ["PATH"]
+            with patch.object(setup, "WINDOWS_OLLAMA_DIRS", (str(directory),)), \
+                    patch.object(setup.shutil, "which", return_value=None):
+                found = setup.find_ollama(platform_of("windows"))
+            try:
+                self.assertEqual(found, str(directory / "ollama.exe"))
+                self.assertEqual(
+                    os.environ["PATH"], str(directory) + os.pathsep + before,
+                    "the directory has to go on PATH, or `ollama pull` cannot run",
+                )
+            finally:
+                os.environ["PATH"] = before
+
+    def test_a_miss_changes_nothing(self) -> None:
+        """Not found must stay not found: a PATH this script edited on a guess would be worse
+        than the honest "not installed" the step already reports."""
+        with tempfile.TemporaryDirectory() as temp:
+            before = os.environ["PATH"]
+            with patch.object(
+                setup, "WINDOWS_OLLAMA_DIRS", (str(Path(temp, "absent")),)
+            ), patch.object(setup.shutil, "which", return_value=None):
+                self.assertIsNone(setup.find_ollama(platform_of("windows")))
+            self.assertEqual(os.environ["PATH"], before)
+
+    def test_other_platforms_never_touch_the_path(self) -> None:
+        """brew and the Linux installer drop the binary somewhere already on PATH, so the
+        fallback is Windows-only -- and %VAR% expansion only means anything there anyway."""
+        for system in ("macos", "linux"):
+            with self.subTest(system=system):
+                before = os.environ["PATH"]
+                with patch.object(setup.shutil, "which", return_value=None):
+                    self.assertIsNone(setup.find_ollama(platform_of(system)))
+                self.assertEqual(os.environ["PATH"], before)
 
     def test_no_package_manager_says_what_to_install_by_hand(self) -> None:
         self.stub_missing({"zstd", "ollama"})

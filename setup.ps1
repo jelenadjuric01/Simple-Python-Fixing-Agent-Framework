@@ -176,21 +176,27 @@ if (-not $python) {
 
 # Everything from here -- the tier, the models, the context window, .agentfix.env, the
 # MELLUM_MODEL variable -- is identical on every OS, so it lives in setup.py and nowhere else.
+function Invoke-SetupPy {
+    # Function-scoped tolerance, as in Invoke-Native. It is not cosmetic here: `ollama pull`
+    # writes its progress to stderr, and under the script's "Stop" the first such line would
+    # abort this script part-way through an 8 GB download.
+    param([string]$Exe, [string[]]$Arguments)
+    $ErrorActionPreference = "Continue"
+    & $Exe @Arguments
+}
+
 $arguments = @((Join-Path $root "setup.py"), "--bootstrapped")
 if ($Yes) { $arguments += "--yes" }
 $arguments += $Passthrough
-# Called at script scope, NOT through a function, and this is load-bearing. Inside a function
-# `& $exe @args` writes stdout to the FUNCTION's output stream; `exit (Invoke-SetupPy ...)` then
-# evaluates that subexpression to completion, collects every line setup.py printed as pipeline
-# objects, and throws them away turning the value into an exit code. The learner sees setup start
-# and then silence -- and never sees a confirmation prompt, so an interactive run hangs. Measured
-# on Windows 11: `setup.ps1` printed setup.py's first two lines and stopped, while the identical
-# `python setup.py --dry-run` ran to completion.
+
+# Called as a STATEMENT, and read from $LASTEXITCODE afterwards. Not `exit (Invoke-SetupPy ...)`:
+# a subexpression consumes the pipeline, so every line setup.py printed is collected as objects
+# and then thrown away turning the value into an exit code. The learner sees setup start and then
+# silence, and never sees a confirmation prompt, so an interactive run hangs with nothing on
+# screen. Measured on Windows 11: setup.ps1 printed setup.py's first two lines and stopped, while
+# `python setup.py --dry-run` on the same machine ran to completion.
 #
-# "Continue" for the same reason `Invoke-Native` uses it: a traceback out of setup.py belongs on
-# the console followed by its exit code, not turned into a terminating error that loses the
-# status. Set here rather than in a function scope because there is no cmdlet left to guard --
-# this is the last statement in the file.
-$ErrorActionPreference = "Continue"
-& $python @arguments
+# At statement level nothing consumes the output, so PowerShell writes it straight to the host,
+# and $LASTEXITCODE is global -- a function call does not disturb it.
+Invoke-SetupPy $python $arguments
 exit $LASTEXITCODE

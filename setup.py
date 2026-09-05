@@ -121,6 +121,19 @@ NOTEBOOK = "notebooks/agentfix.ipynb"
 PYTHON_ORG = "https://www.python.org/downloads/"
 OLLAMA_DOWNLOAD = "https://ollama.com/download"
 
+# Where the Windows installers put ollama.exe, in the order they are worth trying: winget's
+# default is a per-user install, and a machine-wide one is the exception.
+#
+# Needed because `winget install` adds Ollama's directory to the PATH of processes started
+# AFTERWARDS. This one keeps the environment it launched with, so a `shutil.which("ollama")`
+# straight after a successful install cannot see what was just installed — and the re-probe
+# would report "ran, but the check still fails" for a step that worked. Measured on Windows 11
+# with no winget; a machine that has winget reaches the install and then this.
+WINDOWS_OLLAMA_DIRS = (
+    r"%LOCALAPPDATA%\Programs\Ollama",
+    r"%ProgramFiles%\Ollama",
+)
+
 SERVER_TIMEOUT_S = 90.0
 
 # `run_command`'s verdict when the learner said no, as opposed to when the command ran and
@@ -739,9 +752,38 @@ def _ensure_tools(
     return True, "installed " + " and ".join(missing)
 
 
+def find_ollama(plat: Platform) -> Optional[str]:
+    """`ollama` on PATH, or — on Windows — wherever the installer just put it.
+
+    The fallback also *fixes* the PATH for the rest of this process, which is the point: it is
+    not enough for the probe to pass, because `ollama serve`, `ollama pull` and `ollama create`
+    all have to run in the steps below. Prepending the directory to os.environ means every
+    later subprocess inherits it, so a student who has just installed Ollama through winget can
+    finish setup in one run instead of restarting the IDE and starting over.
+
+    PATH only, deliberately: nothing here writes to the registry or to the student's profile.
+    Windows already has the persistent entry from the installer — this process is the only one
+    that cannot see it.
+    """
+    found = shutil.which("ollama")
+    if found:
+        return found
+    if plat.system != "windows":
+        return None
+
+    for raw in WINDOWS_OLLAMA_DIRS:
+        # expandvars handles %VAR% on Windows, which is why this is guarded by the platform
+        # check above rather than run everywhere.
+        directory = Path(os.path.expandvars(raw))
+        if (directory / "ollama.exe").is_file():
+            os.environ["PATH"] = str(directory) + os.pathsep + os.environ.get("PATH", "")
+            return shutil.which("ollama") or str(directory / "ollama.exe")
+    return None
+
+
 def ollama_binary_step(plat: Platform, opts: Options) -> Step:
     def probe() -> Tuple[bool, str]:
-        found = shutil.which("ollama")
+        found = find_ollama(plat)
         if found:
             return True, found
         return False, "not installed"
