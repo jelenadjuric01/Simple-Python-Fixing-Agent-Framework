@@ -4,10 +4,6 @@
 Every command in this course runs the same way: **open the terminal, stay where it opens — the
 course root — and use `run.py`.**
 
-```bash
-python run.py doctor
-```
-
 You never need to change directory, and you never need to leave the Course View.
 
 

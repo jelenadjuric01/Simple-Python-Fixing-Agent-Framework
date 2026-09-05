@@ -176,17 +176,21 @@ if (-not $python) {
 
 # Everything from here -- the tier, the models, the context window, .agentfix.env, the
 # MELLUM_MODEL variable -- is identical on every OS, so it lives in setup.py and nowhere else.
-function Invoke-SetupPy {
-    # Same function-scoped tolerance, for the same reason: a traceback out of setup.py belongs
-    # on the console followed by its exit code, not turned into a PowerShell terminating error
-    # that loses the status this script exits with.
-    param([string]$Exe, [string[]]$Arguments)
-    $ErrorActionPreference = "Continue"
-    & $Exe @Arguments
-    return $LASTEXITCODE
-}
-
 $arguments = @((Join-Path $root "setup.py"), "--bootstrapped")
 if ($Yes) { $arguments += "--yes" }
 $arguments += $Passthrough
-exit (Invoke-SetupPy $python $arguments)
+# Called at script scope, NOT through a function, and this is load-bearing. Inside a function
+# `& $exe @args` writes stdout to the FUNCTION's output stream; `exit (Invoke-SetupPy ...)` then
+# evaluates that subexpression to completion, collects every line setup.py printed as pipeline
+# objects, and throws them away turning the value into an exit code. The learner sees setup start
+# and then silence -- and never sees a confirmation prompt, so an interactive run hangs. Measured
+# on Windows 11: `setup.ps1` printed setup.py's first two lines and stopped, while the identical
+# `python setup.py --dry-run` ran to completion.
+#
+# "Continue" for the same reason `Invoke-Native` uses it: a traceback out of setup.py belongs on
+# the console followed by its exit code, not turned into a terminating error that loses the
+# status. Set here rather than in a function scope because there is no cmdlet left to guard --
+# this is the last statement in the file.
+$ErrorActionPreference = "Continue"
+& $python @arguments
+exit $LASTEXITCODE
