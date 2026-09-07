@@ -95,8 +95,5 @@ The three implementations, if you would rather read or fork them outside the IDE
 `--limit` makes it affordable. Change one thing, run it again, and compare against
 `results/precomputed/`.
 
-And if you take one thing from all three editions, make it the stop condition. What decides whether
-an agent is trustworthy is not the framework under it or the reasoning inside it — it is that it
-believes the test suite rather than the model.
 
 The last step of the course is optional: how to take all of this back off your machine.

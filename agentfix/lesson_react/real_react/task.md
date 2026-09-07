@@ -9,8 +9,6 @@ before the first command below, and it never comes up. On the `qwen` tier there 
 stop: that tier has one model, `agentfix-qwen3`, and this lesson uses the same one the last
 lesson did.
 
-Same three commands as the last lesson, one word different — `agentgraph` instead of `agentlang`:
-
 > **On the `colab` tier, this is the step you do in the browser.** Open
 > `notebooks/agentfix.ipynb` in Google Colab and run it top to bottom. It installs Ollama and the
 > model inside the Colab runtime and runs the same two tasks there, so the commands below and

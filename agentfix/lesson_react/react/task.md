@@ -22,7 +22,7 @@ and acts in the *same* turn. The graph you built in the previous lesson is uncha
 The previous edition's honest summary was that its agent did not reason: seven tool-calling turns
 carrying no deliberation, and one closing explanation *after* the fix was already verified. It
 worked by trying things. A thinking model plans before it acts, and on this workshop's tasks that
-is worth a large jump in pass@1 — you will see the numbers in the next step.
+is worth a large jump in pass@1.
 
 It also introduces a failure mode the Instruct model essentially never had.
 
@@ -46,7 +46,7 @@ actually thought — the number the previous workshop could not produce.
 
 ## Your job
 
-Open `agentgraph/agent/graph.py`. There are four `TODO` markers.
+Open `agentgraph/agent/graph.py`. There are three `TODO` markers.
 
 | # | Where | What it decides |
 |---|---|---|
@@ -55,7 +55,7 @@ Open `agentgraph/agent/graph.py`. There are four `TODO` markers.
 | 3 | `nudge_node` | which of the two corrections to send |
 
 
-They are one decision split four ways: **reasoning is not an action**, and an agent has to be
+They are one decision split three ways: **reasoning is not an action**, and an agent has to be
 able to tell the difference.
 
 <div class="hint" title="1 — what counts as acting?">

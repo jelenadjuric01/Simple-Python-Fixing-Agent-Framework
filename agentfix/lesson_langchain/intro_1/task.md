@@ -170,16 +170,28 @@ runner.py            (workspace copy, tools bound to it)
   ↓
 build_graph          (nodes + routers + checkpointer + tracer)
   ↓
-        ┌──────────────┐
-   ───▶ │  agent_node  │  one model turn
-        └──────┬───────┘
-               │  route_after_agent   ← STAGE 1
-      ┌────────┼─────────┐
-      ▼        ▼         ▼
-   tools    nudge       END
-      │        │
-      │  route_after_tools
-      └────────┴──────────▶ back to agent_node
+START
+  ↓
+  ┌──────────────────────────────────────────────────────────┐
+  │                                                          │
+  ▼                                                          │
+┌──────────────┐                                             │
+│  agent_node  │  one model turn                             │
+└──────┬───────┘                                             │
+       │  route_after_agent   ← STAGE 1                      │
+       │                                                     │
+       ├── tool calls ──────────▶ ┌─────────────┐            │
+       │                          │ tools_node  │  ← STAGE 2 │
+       │                          └──────┬──────┘  (guard)   │
+       │                                 │  route_after_tools│
+       │                                 ├── ok ─────────────┤
+       │                                 └── stuck / budget ─┼──▶ END
+       │                                                     │
+       ├── prose, tests red ────▶ ┌─────────────┐            │
+       │                          │ nudge_node  │────────────┘
+       │                          └─────────────┘
+       │
+       └── tests pass, or budget spent ──────────────────────────▶ END
   ↓
 AgentResult
   ↓
