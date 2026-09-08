@@ -73,15 +73,15 @@ files:
   - name: agentgraph/agent/graph.py
     visible: true
     placeholders:
-      - offset: 13967
+      - offset: 14715
         length: 31
-        placeholder_text: "# TODO: Exercise 1 - first"
-      - offset: 20238
-        length: 370
-        placeholder_text: "# TODO: Exercise 1 - second"
-      - offset: 25833
+        placeholder_text: "# TODO: Exercise 1"
+      - offset: 21295
+        length: 61
+        placeholder_text: "# TODO: Exercise 2"
+      - offset: 27690
         length: 63
-        placeholder_text: "# TODO: Exercise 1 - third"
+        placeholder_text: "# TODO: Exercise 3"
   - name: agentgraph/agent/state.py
     visible: true
     editable: false

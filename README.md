@@ -812,8 +812,12 @@ for me?*
 
 - **The stop condition.** `is_done` believes the test suite, not the model's claim about its own
   work. No framework can supply that — it is a fact about *your* task.
-- **The loop guard.** LangGraph has no hook for it at all. LangChain 1.x gives you the seam
-  (`wrap_tool_call`), but "three identical calls means the model is stuck" is still your policy.
+- **The loop guard.** The seams exist — `wrap_tool_call` in LangChain 1.x middleware, and a
+  `post_model_hook` if you build the agent with `create_react_agent` — but a seam is only a place
+  to put a decision. "Three identical calls means the model is stuck" is your policy, and the
+  counters it needs are state the framework owns. `agentlang/agent/prebuilt.py` builds this guard
+  on `wrap_tool_call` and records the measured cost: its counters live on the middleware instance,
+  so they survive no checkpoint and they leak into the next run.
 - **The step budget.** `recursion_limit` counts node executions, not model turns.
 
 Those three are exactly what you write in this lesson.

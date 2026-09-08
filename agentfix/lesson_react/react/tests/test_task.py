@@ -844,10 +844,20 @@ class TestCheckpointing(GraphTestCase):
     """State the framework can snapshot, which only works if the state holds everything."""
 
     def _run(self, app, llm, state=None):
-        """Invoke `app` on thread "t". `state=None` starts a run; a partial dict resumes one."""
+        """Invoke `app` on thread "t". `state=None` starts a run; a partial dict resumes one.
+
+        `max_concurrency=1` is not decoration. The tool step fans out one task per call, so
+        serialising them is the run config's job and `guard_node` refuses to proceed without
+        it — which is what these tests would otherwise discover as a confusing error rather
+        than as the requirement it is. `run_agent` sets it for every ordinary run.
+        """
         return app.invoke(
             initial_state(system_prompt(self.tools), "Fix it.") if state is None else state,
-            config={"configurable": {"thread_id": "t"}, "callbacks": [Tracer()]},
+            config={
+                "configurable": {"thread_id": "t"},
+                "callbacks": [Tracer()],
+                "max_concurrency": 1,
+            },
         )
 
     def test_a_run_can_be_resumed_from_its_checkpoint(self):

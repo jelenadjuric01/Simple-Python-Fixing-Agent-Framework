@@ -2,7 +2,8 @@
 
 Open `agentlang/agent/graph.py` and find `TODO: EXERCISE(stage-1)` inside `route_after_agent`.
 
-The graph is already wired: `agent_node` takes a model turn, `tools_node` runs whatever the model
+The graph is already wired: `agent_node` takes a model turn, `guard_node` screens the calls and
+the framework's `ToolNode` runs whatever the
 asked for, `nudge_node` sends it back to work. What is missing is the edge between them — the
 function that looks at the turn that just happened and says where the run goes next.
 
@@ -35,7 +36,7 @@ worth understanding before you decide what yours checks.
 
 <div class="hint" title="What am I choosing between, and what can I look at?">
 
-The function returns a string, and there are exactly three answers: `"tools"` and `"nudge"` name
+The function returns a string, and there are exactly three answers: `"guard"` and `"nudge"` name
 the nodes to go to, and `END` (imported from `langgraph.graph`) finishes the run.
 
 Everything you need is already in scope, and the docstring lists it:
@@ -86,7 +87,7 @@ for the shape.
 
 <div class="hint" title="Last resort — the four lines in words">
 
-If the model asked for tools → `"tools"`.
+If the model asked for tools → `"guard"`.
 Otherwise, if the verdict says the tests pass → `END`.
 Otherwise, if the step budget is spent → `END`.
 Otherwise → `"nudge"`.

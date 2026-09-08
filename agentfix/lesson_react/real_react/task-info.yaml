@@ -67,9 +67,9 @@ files:
   - name: agentgraph/agent/graph.py
     visible: true
     placeholders:
-      - offset: 13967
+      - offset: 14715
         length: 31
-        placeholder_text: "# TODO: EXERCISE(stage-1)"
+        placeholder_text: "# TODO"
         dependency:
           section: agentfix
           lesson: lesson_react
@@ -77,9 +77,9 @@ files:
           file: agentgraph/agent/graph.py
           placeholder: 1
         is_visible: false
-      - offset: 20238
-        length: 370
-        placeholder_text: "# TODO: Exercise 1"
+      - offset: 21295
+        length: 61
+        placeholder_text: "# TODO"
         dependency:
           section: agentfix
           lesson: lesson_react
@@ -87,9 +87,9 @@ files:
           file: agentgraph/agent/graph.py
           placeholder: 2
         is_visible: false
-      - offset: 25833
+      - offset: 27690
         length: 63
-        placeholder_text: "# TODO: Exercise 1"
+        placeholder_text: "# TODO"
         dependency:
           section: agentfix
           lesson: lesson_react

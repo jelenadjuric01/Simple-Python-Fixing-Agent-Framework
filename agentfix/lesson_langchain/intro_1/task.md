@@ -15,7 +15,7 @@ yours to edit, and you will edit it in two places:
 | Stage | You write | File |
 |---|---|---|
 | 1 | `route_after_agent` — where a model turn goes next, and the only place a run can end successfully | `agentlang/agent/graph.py` |
-| 2 | the loop guard inside `tools_node` — refusing a call the model has already made | `agentlang/agent/graph.py` |
+| 2 | the loop guard inside `guard_node` — refusing a call the model has already made | `agentlang/agent/graph.py` |
 
 Notice what is *not* on that list. The tools, the dispatch, the message history, the retries on
 a bad argument — all of that is the framework's, and you will not write a line of it. What
@@ -47,8 +47,14 @@ And what it does not contribute, which is what you are here for:
 
 - **The stop condition.** `is_done` believes the test suite, not the model's claim about its own
   work. No framework can supply that — it is a fact about *your* task.
-- **The loop guard.** LangGraph has no hook for it at all. LangChain 1.x gives you the seam
-  (`wrap_tool_call`), but "three identical calls means the model is stuck" is still your policy.
+- **The loop guard's policy — though not its plumbing.** The agent borrows the framework's own
+  shape here: `create_react_agent` wires `post_model_hook` by diffing the answered `tool_call_id`s
+  against the calls the model made and dispatching only what is left, so answering a call is what
+  refuses it. `guard_node` and `route_after_guard` are that router, reproduced, because the hook is
+  a `create_react_agent` argument while `Send` is public. What no seam supplies is "three identical
+  calls means the model is stuck" — and the counters that claim needs are state, which is why they
+  live in `AgentState` here and cost `agentlang/agent/prebuilt.py` a checkpoint when they live on a
+  middleware instance instead.
 - **The step budget.** `recursion_limit` counts node executions, not model turns.
 
 `agentlang/agent/prebuilt.py` builds the same agent again out of `create_agent` — the framework's
@@ -109,9 +115,9 @@ Modelfile
 
 ### `agent/` — the agent itself
 
-`graph.py` is the one to read. It is the whole agent as a LangGraph `StateGraph`: three nodes
-(`agent_node`, `tools_node`, `nudge_node`) and two routers (`route_after_agent`,
-`route_after_tools`). `state.py` defines `AgentState` and its reducers — including
+`graph.py` is the one to read. It is the whole agent as a LangGraph `StateGraph`: four nodes of
+our own (`agent_node`, `guard_node`, `fold_node`, `nudge_node`), the framework's `ToolNode` as a
+fifth, and three routers (`route_after_agent`, `route_after_guard`, `route_after_tools`). `state.py` defines `AgentState` and its reducers — including
 `tests_passed`, the verdict that has to live in the state rather than on a tool if a resumed run
 is to stay correct. `trace.py` records what happened, via callbacks. `prebuilt.py` is the
 `create_agent` comparison described above.
@@ -172,24 +178,34 @@ build_graph          (nodes + routers + checkpointer + tracer)
   ↓
 START
   ↓
-  ┌──────────────────────────────────────────────────────────┐
-  │                                                          │
-  ▼                                                          │
-┌──────────────┐                                             │
-│  agent_node  │  one model turn                             │
-└──────┬───────┘                                             │
-       │  route_after_agent   ← STAGE 1                      │
-       │                                                     │
-       ├── tool calls ──────────▶ ┌─────────────┐            │
-       │                          │ tools_node  │  ← STAGE 2 │
-       │                          └──────┬──────┘  (guard)   │
-       │                                 │  route_after_tools│
-       │                                 ├── ok ─────────────┤
-       │                                 └── stuck / budget ─┼──▶ END
-       │                                                     │
-       ├── prose, tests red ────▶ ┌─────────────┐            │
-       │                          │ nudge_node  │────────────┘
-       │                          └─────────────┘
+  ┌────────────────────────────────────────────────────────────────┐
+  │                                                                │
+  ▼                                                                │
+┌──────────────┐                                                   │
+│  agent_node  │  one model turn                                   │
+└──────┬───────┘                                                   │
+       │  route_after_agent   ← STAGE 1                            │
+       │                                                           │
+       ├── tool calls ──────────▶ ┌──────────────┐                 │
+       │                          │  guard_node  │  ← STAGE 2      │
+       │                          └──────┬───────┘  refuse = answer│
+       │                                 │  route_after_guard      │
+       │              ┌──────────────────┤                         │
+       │              │                  │  a call survived        │
+       │              │           ┌──────▼───────┐                 │
+       │  all refused │           │   ToolNode   │  one Send/call  │
+       │              │           └──────┬───────┘                 │
+       │              └──────────────────┤                         │
+       │                          ┌──────▼───────┐                 │
+       │                          │  fold_node   │  the verdict    │
+       │                          └──────┬───────┘                 │
+       │                                 │  route_after_tools      │
+       │                                 ├── ok ───────────────────┤
+       │                                 └── stuck / budget ───────┼──▶ END
+       │                                                           │
+       ├── prose, tests red ────▶ ┌──────────────┐                 │
+       │                          │  nudge_node  │─────────────────┘
+       │                          └──────────────┘
        │
        └── tests pass, or budget spent ──────────────────────────▶ END
   ↓
@@ -201,4 +217,3 @@ evaluation / results
 `agent/graph.py` decides what happens next, `llm/` talks to the model, `tools/` gives the model
 actions, `sandbox/` executes them safely. Everything else prepares tasks, wires the pieces
 together, or scores the result.
-
