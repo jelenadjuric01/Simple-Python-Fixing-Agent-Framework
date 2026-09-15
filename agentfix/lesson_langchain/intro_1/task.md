@@ -61,6 +61,9 @@ prebuilt loop — purely so you can read the honest comparison. It is not the pa
 
 ## What you will find in this repo
 
+If you would like to see a presentation that goes with this workshop, go to: [link](https://docs.google.com/presentation/d/1bRvkEPYHzaq8bmSeMIoWKPN1fmTcFvwB871OsCeVIk0/edit?usp=sharing). This is optional.
+
+
 ```text
 agentlang/
 ├── agent/

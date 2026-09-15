@@ -17,6 +17,9 @@ can read and reasoning that quietly corrupts your outputs.
 **There is no think step, and no new node.** This is what ReAct actually means: the model thinks
 and acts in the *same* turn. The graph you built in the previous lesson is unchanged in shape.
 
+If you would like to see a presentation that goes with this workshop, go to: [link](https://docs.google.com/presentation/d/1bRvkEPYHzaq8bmSeMIoWKPN1fmTcFvwB871OsCeVIk0/edit?usp=sharing). This is optional.
+
+
 ## Why it is worth a lesson
 
 The previous edition's honest summary was that its agent did not reason: seven tool-calling turns

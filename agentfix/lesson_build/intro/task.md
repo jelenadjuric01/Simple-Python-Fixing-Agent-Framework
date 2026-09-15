@@ -23,7 +23,7 @@ loop, tools, verification — the code in front of you belongs to.
 ## What will you find in this repo and how to understand it?
 
 
-If you would like to see a presentation that goes with this workshop, go to: [link](https://docs.google.com/presentation/d/1ky_-18N9A2r5ysYGqia9yVgu9yuP9o6pOVE6g6Hy0ns/edit?usp=sharing). This is optional.
+If you would like to see a presentation that goes with this workshop, go to: [link](https://docs.google.com/presentation/d/1bRvkEPYHzaq8bmSeMIoWKPN1fmTcFvwB871OsCeVIk0/edit?usp=sharing). This is optional.
 
 ```text
 agentfix/
