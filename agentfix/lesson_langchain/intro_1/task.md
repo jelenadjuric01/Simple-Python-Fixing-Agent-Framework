@@ -27,8 +27,7 @@ stops, and what to do about a model that has stopped making progress.**
 Loop, tools, verification — the same three ideas the hand-written agent was built out of.
 
 The framework gives you the loop and the tools. It does not give you verification, and it does
-not give you a policy for a stuck model. That asymmetry is the entire lesson — both stages here
-sit on the side of the line the framework left empty.
+not give you a policy for a stuck model. 
 
 Concretely, what LangGraph/LangChain contribute in this repo:
 

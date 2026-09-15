@@ -22,16 +22,6 @@ why `list_files` and `read_file` earn their place:
 `--verbose` prints one line per step. You should see the model call `run_tests`, look around,
 write a file, and run the tests again — and then a final line of prose.
 
-Two of those lines are yours:
-
-- The run does not end on the green test result. It ends one turn later, on the model's prose
-  reply, because that is where **Stage 1** put the `is_done` check. That last turn is the only
-  prose in a whole run, and it is worth reading: the explanation arrives *after* the fix was
-  already verified, which tells you something about how much reasoning was involved.
-- If the model gets stuck, you will see a line that no tool produced — `guarded — identical
-  call #2 in a row`. That is **Stage 2**, and it is the only line in the trace that exists
-  because the graph decided something rather than because a tool ran.
-
 If it burns all ten steps and prints `NOT SOLVED`, that is not necessarily your bug. A 12B model
 does not fix every task, and the next section is about exactly that.
 
@@ -89,25 +79,7 @@ you want to see which tasks failed.
 
 # Sandbox safety
 
-Your agent executes model-written code. On this machine. That is worth one honest paragraph
-before you run it on anything you care about.
-
-Two boundaries, at two different layers:
-
-- **The tool layer confines paths.** `resolve_in_root` in `agentlang/tools/fs.py` rejects any
-  path that would escape the task's working directory *before* a read or write happens. The model
-  can ask for `../../etc/passwd`; the tool refuses. `WriteFileTool` narrows it further — it is
-  constructed with the set of files that existed in the pristine template, so the agent cannot
-  create a file and then start writing to it.
-- **The sandbox confines execution.** When test code actually runs, the Docker backend runs it
-  with no network access, memory/pid/CPU caps, and as a non-root user — so code the model wrote
-  that behaves badly (an infinite loop, an attempt to phone home, a fork bomb) is contained
-  rather than trusted.
-
-Neither of these is framework machinery, and neither changed when the agent moved to LangGraph.
-Confinement is a property of the tools and the sandbox, not of the loop that calls them — which
-is why this lesson's `tools/` and `sandbox/` directories are the same code as the previous
-lesson's.
+Stays the ame as in no framework agent. 
 
 ## Trying it yourself
 

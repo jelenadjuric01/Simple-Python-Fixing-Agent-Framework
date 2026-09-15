@@ -16,9 +16,7 @@ history, retries, the trace — the framework already wrote.
 
 So this is the only place a run can end **successfully**, and the whole question is what the
 agent is willing to believe. The model will tell you it has fixed the bug. It will say so
-fluently, and sometimes without having run anything. The previous lesson's answer was to believe
-the test suite instead, and `is_done` — near the top of the file, above the nodes — is where
-that verdict lives. Read it before you write anything, including where the value it reads can possibly
+fluently, and sometimes without having run anything. Read it before you write anything, including where the value it reads can possibly
 come from.
 
 ## What the router has to be right about
